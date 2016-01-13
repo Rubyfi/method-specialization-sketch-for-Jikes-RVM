@@ -23,7 +23,9 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.vmmagic.pragma.DynamicBridge;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -79,6 +81,7 @@ public class DynamicLinker {
    * and compiling a lazy method invocation.  In separate class so
    * that it doesn't implement DynamicBridge magic.
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   private static class DL_Helper {
 
     /**

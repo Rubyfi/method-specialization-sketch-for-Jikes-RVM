@@ -21,6 +21,7 @@ import org.mmtk.vm.VM;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 
 /**
  * This class implements <i>per-mutator thread</i> behavior and state for the
@@ -49,6 +50,7 @@ import org.vmmagic.pragma.*;
    */
   @Override
   @Inline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public final void postAlloc(ObjectReference object, ObjectReference typeRef,
       int bytes, int allocator) {
     /* Make the trace generator aware of the new object. */

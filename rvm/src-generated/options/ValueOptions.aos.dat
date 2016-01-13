@@ -42,6 +42,15 @@ What triggers us to take a method sample?
 "CGL_TIMER cgTimer timer" \
 "CGL_CBS cgCBS cbs"
 
+E METHOD_SPECIALIZATION_STRATEGY byte DO_NOT_SPECIALIZE
+What strategy should method specialization use? No specialization without parameter profiling.
+"DO_NOT_SPECIALIZE noSpecialization noSpecialization" \
+"AT_MOST_ONE_VERSION_PER_OPT_COMPILED_METHOD atMostOneVersionPerOptCompiledMethod atMostOneVersionPerOptCompiledMethod"
+
+V SPECIALIZATION_DECISIONS_LOGFILE String \"SpecializationDecisions.txt\" specDec
+Name of logfile for specialization decisions
+
+
 V LOGFILE_NAME String \"AOSLog.txt\" lf
 Name of log file
 

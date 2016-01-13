@@ -53,9 +53,11 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.StackBrowser;
 import org.jikesrvm.runtime.Statics;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -428,6 +430,7 @@ public final class RVMClass extends RVMType {
   /**
    * @return declared inner and static member classes
    */
+  @Uninterruptible
   public TypeReference[] getDeclaredClasses() {
     return declaredClasses;
   }
@@ -927,6 +930,7 @@ public final class RVMClass extends RVMType {
    *
    * @return the class loader
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static ClassLoader getClassLoaderFromStackFrame(int skip) {
     skip++; // account for stack frame of this function
     StackBrowser browser = new StackBrowser();
@@ -946,6 +950,7 @@ public final class RVMClass extends RVMType {
    *
    * @return the class that declares the method at the desired frame
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static RVMClass getClassFromStackFrame(int skip) {
     skip++; // account for stack frame of this function
     StackBrowser browser = new StackBrowser();

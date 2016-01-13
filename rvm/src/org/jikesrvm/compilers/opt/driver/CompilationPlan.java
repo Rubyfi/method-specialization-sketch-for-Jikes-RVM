@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.compilers.opt.driver;
 
+import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.AbstractParameterInfo;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.opt.OptOptions;
@@ -35,6 +36,10 @@ public final class CompilationPlan {
 
   /**
    * The specialized parameters to use in place of those defined in method.
+   * These are used for method specialization with {@link org.jikesrvm.classloader.SpecializedMethod}.
+   * <p>
+   * Note: It is not possible for this field and {@link #infoForSpecialization}
+   * to both be non-<code>null</code>.
    */
   public final TypeReference[] params;
 
@@ -63,6 +68,16 @@ public final class CompilationPlan {
   public boolean irGeneration;
 
   /**
+   * This is the info used for method specialization with
+   * {@link org.jikesrvm.compilers.opt.specialization.SpecializedMethod}.
+   * <p>
+   * Note: It is not possible for this field and {@link #params}
+   * to both be non-<code>null</code>.
+
+   */
+  public final AbstractParameterInfo[] infoForSpecialization;
+
+  /**
    * Construct a compilation plan
    *
    * @param m    The NormalMethod representing the source method to be compiled
@@ -79,6 +94,30 @@ public final class CompilationPlan {
     optimizationPlan = op;
     instrumentationPlan = mp;
     options = opts;
+
+    infoForSpecialization = null;
+  }
+
+  /**
+   * Construct a compilation plan, used exclusively for method specialization through the
+   * opt compiler using classes from the package org.jikesrvm.compilers.opt.specialization.
+   *
+   * @param m    The NormalMethod representing the source method to be compiled
+   * @param op   The optimization plan to be executed on m
+   * @param mp   The instrumentation plan to be executed on m
+   * @param opts The Options to be used for compiling m
+   * @param infoForSpecialization The information to be used for method specialization.
+   *
+   */
+  public CompilationPlan(NormalMethod m, OptimizationPlanElement[] op, InstrumentationPlan mp, OptOptions opts, AbstractParameterInfo[] infoForSpecialization) {
+    method = m;
+    this.infoForSpecialization = infoForSpecialization;
+    inlinePlan = new DefaultInlineOracle();
+    optimizationPlan = op;
+    instrumentationPlan = mp;
+    options = opts;
+
+    params = null;
   }
 
   /**

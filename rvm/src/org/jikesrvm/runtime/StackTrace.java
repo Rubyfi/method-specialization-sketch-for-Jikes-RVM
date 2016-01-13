@@ -12,6 +12,11 @@
  */
 package org.jikesrvm.runtime;
 
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+
 import org.jikesrvm.VM;
 import org.jikesrvm.architecture.AbstractRegisters;
 import org.jikesrvm.architecture.StackFrameLayout;
@@ -26,6 +31,8 @@ import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.compilers.opt.runtimesupport.OptEncodedCallSiteTree;
 import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
@@ -52,6 +59,7 @@ public class StackTrace {
    * Create a trace for the call stack of the current thread
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public StackTrace() {
     this(RVMThread.getCurrentThread());
   }
@@ -119,6 +127,7 @@ public class StackTrace {
    */
   @Uninterruptible
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   private int countFramesUninterruptible(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     Address fp;
@@ -158,6 +167,7 @@ public class StackTrace {
    */
   @Uninterruptible
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   private void recordFramesUninterruptible(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     Address fp;
@@ -321,6 +331,16 @@ public class StackTrace {
 
   private Element[] buildStackTrace(int first, int last) {
     Element[] elements = new Element[countFrames(first, last)];
+
+
+    // Need to keep track of elements belonging to specialized methods so we can remove
+    // the proper element. The element that will be removed is that from the method that
+    // called the specialized method (i.e. the element from the general method version).
+    // The element from the specialized method itself has the real line number information and
+    // will not be removed.
+    List<Element> elementsForSpecializedMethods = new LinkedList<Element>();
+
+
     if (!VM.BuildForOptCompiler) {
       int element = 0;
       for (int i = first; i <= last; i++) {
@@ -329,12 +349,14 @@ public class StackTrace {
       }
     } else {
       int element = 0;
+      Element elementToSave = null;
       for (int i = first; i <= last; i++) {
         CompiledMethod compiledMethod = getCompiledMethod(i);
         if ((compiledMethod == null) ||
             (compiledMethod.getCompilerType() != CompiledMethod.OPT)) {
           // Invisible or non-opt compiled method
-          elements[element] = new Element(compiledMethod, instructionOffsets[i]);
+          elementToSave = new Element(compiledMethod, instructionOffsets[i]);
+          elements[element] = elementToSave;
           element++;
         } else {
           Offset instructionOffset = Offset.fromIntSignExtend(instructionOffsets[i]);
@@ -342,7 +364,8 @@ public class StackTrace {
           OptMachineCodeMap map = optInfo.getMCMap();
           int iei = map.getInlineEncodingForMCOffset(instructionOffset);
           if (iei < 0) {
-            elements[element] = new Element(compiledMethod, instructionOffsets[i]);
+            elementToSave = new Element(compiledMethod, instructionOffsets[i]);
+            elements[element] = elementToSave;
             element++;
           } else {
             int[] inlineEncoding = map.inlineEncoding;
@@ -351,15 +374,62 @@ public class StackTrace {
               int mid = OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
               RVMMethod method = MemberReference.getMethodRef(mid).getResolvedMember();
               int lineNumber = ((NormalMethod)method).getLineNumberForBCIndex(bci);
-              elements[element] = new Element(method, lineNumber);
+              elementToSave = new Element(method, lineNumber);
+              elements[element] = elementToSave;
               element++;
               if (iei > 0) {
                 bci = OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
               }
             }
           }
+
+          // Save element of specialized method
+          if (optInfo.belongsToParamSpecializedMethod()) {
+            elementsForSpecializedMethods.add(elementToSave);
+          }
         }
       }
+    }
+    // Remove elements for callers of the specialized method
+    elements = removeSpecialCallerElements(elements, elementsForSpecializedMethods);
+
+    return elements;
+  }
+
+  /**
+   * Removes the elements that belong to the callers of the specialized methods. Those
+   * elements should not be visible in the stack trace because they're an artifact of
+   * the implementation.
+   * @param elements the current list of stack trace elements
+   * @param elementsForSpecializedMethods a list of elements that belong to specialized methods
+   * @return a stack trace that does not contain elements for direct callers of specialized methods
+   */
+  private Element[] removeSpecialCallerElements(Element[] elements, List<Element> elementsForSpecializedMethods) {
+    if (!elementsForSpecializedMethods.isEmpty()) {
+        List<Element> elementsAsList = Arrays.asList(elements);
+        elementsAsList = new LinkedList<StackTrace.Element>(elementsAsList);
+
+        boolean removeNextElement = false;
+        Iterator<Element> removalIter = elementsAsList.iterator();
+        while (removalIter.hasNext()) {
+          Element next = removalIter.next();
+          if (removeNextElement) {
+            removalIter.remove();
+            removeNextElement = false;
+          }
+          if (elementsForSpecializedMethods.contains(next)) {
+            if (VM.VerifyAssertions) {
+              VM._assert(!removeNextElement, "Two specialized methods must not follow each other in the stack trace!");
+            }
+            removeNextElement = true;
+          }
+        }
+
+        if (VM.VerifyAssertions) {
+          VM._assert(elementsAsList.size() < elements.length, "Did not remove elements from stacktrace although specialized methods were present!");
+        }
+
+        elements = elementsAsList.toArray(new Element[0]);
     }
     return elements;
   }

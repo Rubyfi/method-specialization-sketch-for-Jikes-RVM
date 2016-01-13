@@ -20,6 +20,7 @@ import org.jikesrvm.compilers.opt.OptOptions;
 import org.jikesrvm.compilers.opt.OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.specialization.InvokeeThreadLocalContext;
+import org.jikesrvm.compilers.opt.specialization.ParameterValueSpecializationContext;
 import org.jikesrvm.compilers.opt.specialization.SpecializationDatabase;
 import org.jikesrvm.runtime.Callbacks;
 
@@ -130,6 +131,7 @@ public final class OptimizingCompiler implements Callbacks.StartupMonitor {
    */
   private static void initializeStatics() {
     InvokeeThreadLocalContext.init();
+    ParameterValueSpecializationContext.init();
   }
 
   /**

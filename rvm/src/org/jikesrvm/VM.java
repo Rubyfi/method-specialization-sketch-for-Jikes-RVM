@@ -55,11 +55,13 @@ import org.jikesrvm.util.Services;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
@@ -2286,6 +2288,7 @@ public class VM extends Properties {
    * @param message  error message describing the problem
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void sysFail(String message) {
     handlePossibleRecursiveCallToSysFail(message);
 
@@ -2316,6 +2319,7 @@ public class VM extends Properties {
    * @param number  an integer to append to <code>message</code>.
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void sysFail(String message, int number) {
     handlePossibleRecursiveCallToSysFail(message, number);
 
@@ -2335,6 +2339,7 @@ public class VM extends Properties {
    * @param value  value to pass to host o/s
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   @UninterruptibleNoWarn("We're never returning to the caller, so even though this code is preemptible it is safe to call from any context")
   public static void sysExit(int value) {
     handlePossibleRecursiveCallToSysExit();
@@ -2558,6 +2563,7 @@ public class VM extends Properties {
    * they are never called while GC is disabled.
    */
   @Inline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   @Unpreemptible("We may boost the size of the stack with GC disabled and may get preempted doing this")
   public static void disableGC() {
     disableGC(false);           // Recursion is not allowed in this context.
@@ -2572,6 +2578,7 @@ public class VM extends Properties {
    * @param recursiveOK whether recursion is allowed.
    */
   @Inline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   @Unpreemptible("We may boost the size of the stack with GC disabled and may get preempted doing this")
   public static void disableGC(boolean recursiveOK) {
     // current (non-GC) thread is going to be holding raw addresses, therefore we must:

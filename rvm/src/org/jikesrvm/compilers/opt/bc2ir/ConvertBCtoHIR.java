@@ -34,7 +34,7 @@ public final class ConvertBCtoHIR extends CompilerPhase {
   @Override
   public void perform(IR ir) {
     // Generate the cfg into gc
-    GenerationContext gc = new GenerationContext(ir.method, ir.params, ir.compiledMethod, ir.options, ir.inlinePlan);
+    GenerationContext gc = new GenerationContext(ir.method, ir.params, ir.paramValues, ir.compiledMethod, ir.options, ir.inlinePlan);
     BC2IR.generateHIR(gc);
     // Transfer HIR and misc state from gc to the ir object
     ir.gc = gc;

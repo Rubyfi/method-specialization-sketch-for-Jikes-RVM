@@ -41,6 +41,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 
 import org.jikesrvm.runtime.StackTrace;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 
 final class VMAccessController
 {
@@ -152,6 +154,7 @@ final class VMAccessController
    *
    * @return The context.
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   static AccessControlContext getContext()
   {
     // If we are already in getContext, but called a method that needs

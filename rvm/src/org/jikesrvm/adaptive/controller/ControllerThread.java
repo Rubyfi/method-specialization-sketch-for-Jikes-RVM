@@ -13,23 +13,29 @@
 package org.jikesrvm.adaptive.controller;
 
 import java.util.Enumeration;
+
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.OnStackReplacementEvent;
 import org.jikesrvm.adaptive.OSROrganizerThread;
 import org.jikesrvm.adaptive.database.methodsamples.MethodCountData;
+import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.EdgeListener;
 import org.jikesrvm.adaptive.measurements.listeners.YieldCounterListener;
+import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.ParameterListener;
 import org.jikesrvm.adaptive.measurements.organizers.AccumulatingMethodSampleOrganizer;
 import org.jikesrvm.adaptive.measurements.organizers.DecayOrganizer;
 import org.jikesrvm.adaptive.measurements.organizers.DynamicCallGraphOrganizer;
 import org.jikesrvm.adaptive.measurements.organizers.MethodSampleOrganizer;
 import org.jikesrvm.adaptive.measurements.organizers.Organizer;
+import org.jikesrvm.adaptive.measurements.organizers.ParameterProfileOrganizer;
+import org.jikesrvm.adaptive.measurements.organizers.RecompilationDataProvider;
 import org.jikesrvm.adaptive.recompilation.CompilationThread;
 import org.jikesrvm.adaptive.recompilation.CompilerDNA;
 import org.jikesrvm.adaptive.recompilation.InvocationCounts;
 import org.jikesrvm.adaptive.util.AOSGenerator;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.adaptive.util.AOSOptions;
+import org.jikesrvm.runtime.Callbacks;
 import org.jikesrvm.scheduler.SoftLatch;
 import org.jikesrvm.scheduler.SystemThread;
 import org.vmmagic.pragma.NonMoving;
@@ -264,6 +270,26 @@ public final class ControllerThread extends SystemThread {
         Organizer decayOrganizer = new DecayOrganizer(new YieldCounterListener(opts.DECAY_FREQUENCY));
         Controller.organizers.add(decayOrganizer);
         createDynamicCallGraphOrganizer();
+      }
+    }
+
+    if (RecompilationDataProvider.ENABLED) {
+      RecompilationDataProvider rdp = new RecompilationDataProvider();
+      Callbacks.addMethodCompileMonitor(rdp);
+      RuntimeMeasurements.registerReportableObject(rdp);
+    }
+
+    if (opts.PARAMETER_PROFILING) {
+      if (VM.BuildFor32Addr && VM.BuildForIA32 && VM.BuildForLinux) {
+        if (opts.PARAMETER_PROFILING_INCLUDE_VM) {
+          ParameterListener.enableProfilingOfVMMethods();
+        }
+
+        ParameterProfileOrganizer parameterProfileOrganizer = new ParameterProfileOrganizer();
+        Controller.organizers.addElement(parameterProfileOrganizer);
+      } else {
+        VM.sysFail("Trying to use parameter profiling for an untested configuration." +
+            "Please modify the source code to support your platform");
       }
     }
 

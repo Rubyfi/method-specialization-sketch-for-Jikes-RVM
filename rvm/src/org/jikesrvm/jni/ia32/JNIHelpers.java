@@ -27,8 +27,10 @@ import org.jikesrvm.jni.JNIGenericHelpers;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.SysCall;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 
 /**
@@ -51,6 +53,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
    * @return a new object created by the specified constructor
    * @throws Exception when the reflective invocation of the constructor fails
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static Object invokeInitializer(Class<?> cls, int methodID, Address argAddress, boolean isJvalue,
                                          boolean isDotDotStyle) throws Exception {
     // get the parameter list as Java class
@@ -93,6 +96,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
    * @throws Exception if the return type doesn't match the expected return type
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   @NoOptCompile
   // expect a certain stack frame structure
   public static Object invokeWithDotDotVarArg(int methodID, TypeReference expectReturnType) throws Exception {
@@ -115,6 +119,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
    */
   @NoInline
   @NoOptCompile
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   // expect a certain stack frame structure
   public static Object invokeWithDotDotVarArg(Object obj, int methodID, TypeReference expectReturnType,
                                               boolean skip4Args) throws Exception {
@@ -196,6 +201,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
    * @return the starting address of the vararg in the caller stack frame
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   private static Address getVarArgAddress(boolean skip4Args) {
     Address fp = Magic.getFramePointer();
     fp = fp.loadAddress();

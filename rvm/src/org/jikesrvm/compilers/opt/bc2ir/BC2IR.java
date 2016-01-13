@@ -24,9 +24,13 @@ import static org.jikesrvm.osr.OSRConstants.*;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.controller.Controller;
+import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.AbstractParameterInfo;
+import org.jikesrvm.adaptive.parameterprofiling.AbstractParameterValue;
+import org.jikesrvm.adaptive.parameterprofiling.TypeValueForObjectParameter;
 import org.jikesrvm.classloader.BytecodeStream;
 import org.jikesrvm.classloader.FieldReference;
 import org.jikesrvm.classloader.MethodReference;
@@ -43,6 +47,7 @@ import org.jikesrvm.compilers.opt.FieldAnalysis;
 import org.jikesrvm.compilers.opt.OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.Simplifier;
 import org.jikesrvm.compilers.opt.StaticFieldReader;
+import org.jikesrvm.compilers.opt.driver.OptConstants;
 import org.jikesrvm.compilers.opt.driver.OptimizingCompiler;
 import org.jikesrvm.compilers.opt.inlining.CompilationState;
 import org.jikesrvm.compilers.opt.inlining.InlineDecision;
@@ -53,6 +58,7 @@ import org.jikesrvm.compilers.opt.ir.AStore;
 import org.jikesrvm.compilers.opt.ir.Athrow;
 import org.jikesrvm.compilers.opt.ir.BasicBlock;
 import org.jikesrvm.compilers.opt.ir.Binary;
+import org.jikesrvm.compilers.opt.ir.BooleanCmp;
 import org.jikesrvm.compilers.opt.ir.BoundsCheck;
 import org.jikesrvm.compilers.opt.ir.CacheOp;
 import org.jikesrvm.compilers.opt.ir.Call;
@@ -75,6 +81,7 @@ import org.jikesrvm.compilers.opt.ir.New;
 import org.jikesrvm.compilers.opt.ir.NewArray;
 import org.jikesrvm.compilers.opt.ir.NullCheck;
 import org.jikesrvm.compilers.opt.ir.Operator;
+import org.jikesrvm.compilers.opt.ir.Operators;
 import org.jikesrvm.compilers.opt.ir.OsrBarrier;
 import org.jikesrvm.compilers.opt.ir.OsrPoint;
 import org.jikesrvm.compilers.opt.ir.PutField;
@@ -105,6 +112,9 @@ import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TrapCodeOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TrueGuardOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TypeOperand;
+import org.jikesrvm.compilers.opt.specialization.ParameterValueSpecializationContext;
+import org.jikesrvm.compilers.opt.specialization.SpecializationDatabase;
+import org.jikesrvm.compilers.opt.specialization.SpecializedMethod;
 import org.jikesrvm.osr.ObjectHolder;
 import org.jikesrvm.osr.bytecodes.InvokeStatic;
 import org.jikesrvm.runtime.Entrypoints;
@@ -262,6 +272,8 @@ public final class BC2IR {
    */
   private Instruction lastOsrBarrier = null;
 
+  private boolean generateCallsToSpecializedMethods;
+
   /**
    *  Debugging with method_to_print. Switch following 2
    *  to both be non-final. Set {@link #DBG_SELECTIVE} to true.
@@ -271,6 +283,13 @@ public final class BC2IR {
    */
   private static final boolean DBG_SELECTIVE = false;
   static final boolean DBG_SELECTED = false;
+
+  private static final boolean DBG_SPEC = false;
+
+  private BC2IR.SpecializationManager specializationManager;
+
+  private boolean isSpecializedVersion;
+
 
   //////////
   // End of field declarations
@@ -285,6 +304,41 @@ public final class BC2IR {
    */
   private BC2IR(GenerationContext context) {
     start(context);
+    determineStatusForSpecialization();
+    initLocalStateFromArguments(context);
+    finish(context);
+  }
+
+  /**
+   * Determines if calls to specialized methods be generated for this
+   * method.
+   */
+  private void determineStatusForSpecialization() {
+    isSpecializedVersion = gc.parameterValues != null;
+
+    // Never generate specialized calls when writing the bootimage because
+    // I've determined that this is out of scope.
+    if (!VM.runningVM) {
+      generateCallsToSpecializedMethods = false;
+      return;
+    }
+
+    boolean isNotInlined = gc.getInlineSequence().getInlineDepth() == 0;
+    boolean isGeneralVersion = gc.isGeneralMethodVersion();
+    boolean shouldCallSpecialVersions = SpecializationDatabase.shouldCallSpecialVersions(gc.getMethod());
+    generateCallsToSpecializedMethods = isNotInlined && isGeneralVersion &&
+        shouldCallSpecialVersions;
+
+    if (DBG_SPEC) {
+      if (generateCallsToSpecializedMethods) {
+        VM.sysWriteln(gc.getMethod().getName() + ": will generated specialized calls.");
+      } else {
+        VM.sysWriteln(gc.getMethod().getName() + ": no specialized calls needed.");
+      }
+    }
+  }
+
+  private void initLocalStateFromArguments(GenerationContext context) {
     for (int argIdx = 0, localIdx = 0; argIdx < context.getArguments().length;) {
       TypeReference argType = context.getArguments()[argIdx].getType();
       _localState[localIdx++] = context.getArguments()[argIdx++];
@@ -292,7 +346,6 @@ public final class BC2IR {
         _localState[localIdx++] = DUMMY;
       }
     }
-    finish(context);
   }
 
   @NoInline
@@ -331,22 +384,36 @@ public final class BC2IR {
   private void finish(GenerationContext context) {
     // Initialize simulated stack.
     stack = new OperandStack(context.getMethod().getOperandWords());
-    // Initialize BBSet.
-    blocks = new BBSet(context, bcodes, _localState);
-    // Finish preparing to generate from bytecode 0
-    currentBBLE = blocks.getEntry();
-    gc.getPrologue().insertOut(currentBBLE.block);
-    if (DBG_CFG || DBG_SELECTED) {
-      db("Added CFG edge from " + gc.getPrologue() + " to " + currentBBLE.block);
+
+    if (!generateCallsToSpecializedMethods && !isSpecializedVersion) {
+      // Initialize BBSet.
+      blocks = new BBSet(context, bcodes, _localState);
+    } else if (generateCallsToSpecializedMethods) {
+      blocks = new BBSet(OptConstants.CHECKS_FOR_SPECIALIZED_METHODS_START_BCI, context, bcodes, _localState);
+      if (VM.VerifyAssertions) {
+        VM._assert(blocks.getEntry().low == OptConstants.CHECKS_FOR_SPECIALIZED_METHODS_START_BCI);
+      }
+    } else if (isSpecializedVersion) {
+      blocks = new BBSet(OptConstants.SPECIALIZATION_PARAMETER_VALUES_BCI, context, bcodes, _localState);
+      if (VM.VerifyAssertions) {
+        VM._assert(blocks.getEntry().low == OptConstants.SPECIALIZATION_PARAMETER_VALUES_BCI);
+      }
+    } else {
+      final String cannotConstructBBSet = "Unhandled case when trying to create BBSet for BC2IR.";
+      if (VM.VerifyAssertions) {
+        VM._assert(VM.NOT_REACHED, cannotConstructBBSet);
+      }
+      OptimizingCompilerException.UNREACHABLE("BC2IR", cannotConstructBBSet);
     }
-    runoff = currentBBLE.max;
   }
 
   /**
    * Main generation loop.
    */
   private void generateHIR() {
-    // Constructor initialized generation state to start
+    prepareGenerationOfFirstBlock();
+
+    // Generation state is initialized to start
     // generating from bytecode 0, so get the ball rolling.
     if (DBG_BB || DBG_SELECTED) db("bbl: " + printBlocks());
     generateFrom(0);
@@ -356,12 +423,8 @@ public final class BC2IR {
       // Found a block. Set the generation state appropriately.
       currentBBLE.clearSelfRegen();
       runoff = Math.min(blocks.getNextBlockBytecodeIndex(currentBBLE), currentBBLE.max);
-      if (currentBBLE.stackState == null) {
-        stack.clear();
-      } else {
-        stack = currentBBLE.stackState.deepCopy();
-      }
-      _localState = currentBBLE.copyLocalState();
+      initializeStackStateForCurrentBBLE();
+      initializeLocalStateForCurrentBBLE();
       if (DBG_BB || DBG_SELECTED) db("bbl: " + printBlocks());
       // Generate it!
       generateFrom(currentBBLE.low);
@@ -370,6 +433,73 @@ public final class BC2IR {
     // insert any synthetic blocks.
     if (DBG_BB || DBG_SELECTED) db("doing final pass over basic blocks: " + printBlocks());
     blocks.finalPass(inlinedSomething);
+  }
+
+  /**
+   * Prepare for generation of the first block containing normal bytecode.
+   * <p>
+   * For the normal case (no specialized calls needed and no specialized version),
+   * just update the state so that normal generation from bytecode 0 can start.
+   * <p>
+   * If this is a specialized version, create a BasicBlock that contains the writes
+   * to the parameters and then proceed anologous to the normal case.
+   * <p>
+   * If specialized calls are needed, generate those first and then proceed analogous to the
+   * normal case.
+   */
+  private void prepareGenerationOfFirstBlock() {
+    boolean isNormal = !isSpecializedVersion && !generateCallsToSpecializedMethods;
+
+    if (isNormal) {
+      startLikeNormalGeneration();
+    } else if (isSpecializedVersion) {
+      startLikeNormalGeneration();
+
+      int startIndexChecks = OptConstants.CHECKS_FOR_SPECIALIZED_METHODS_START_BCI;
+      int startIndexCalls = OptConstants.CALLS_FOR_SPECIALIZED_METHODS_START_BCI;
+      specializationManager = new BC2IR.SpecializationManager(startIndexChecks, startIndexCalls);
+
+      specializationManager.initializeStackForStoresToSpecializedMethods();
+      specializationManager.addStoresToCurrentBBLE();
+    } else if (generateCallsToSpecializedMethods) {
+      startLikeNormalGeneration();
+
+      int startIndexChecks = OptConstants.CHECKS_FOR_SPECIALIZED_METHODS_START_BCI;
+      int startIndexCalls = OptConstants.CALLS_FOR_SPECIALIZED_METHODS_START_BCI;
+      specializationManager = new BC2IR.SpecializationManager(startIndexChecks, startIndexCalls);
+
+      specializationManager.initializeStackForCallingSpecializedMethods();
+      specializationManager.insertCallsToSpecializedMethods(blocks.getEntry());
+    } else {
+      final String errorMessage = "Unhandled cases in preparation for bytecode" +
+          " generation from 0!";
+      if (VM.VerifyAssertions) {
+        VM._assert(VM.NOT_REACHED, errorMessage);
+      }
+      OptimizingCompilerException.UNREACHABLE("BC2IR", errorMessage);
+    }
+  }
+
+  private void startLikeNormalGeneration() {
+    // Finish preparing to generate from bytecode 0
+    currentBBLE = blocks.getEntry();
+    gc.getPrologue().insertOut(currentBBLE.block);
+    if (DBG_CFG || DBG_SELECTED) {
+      db("Added CFG edge from " + gc.getPrologue() + " to " + currentBBLE.block);
+    }
+    runoff = currentBBLE.max;
+  }
+
+  private void initializeLocalStateForCurrentBBLE() {
+    _localState = currentBBLE.copyLocalState();
+  }
+
+  private void initializeStackStateForCurrentBBLE() {
+    if (currentBBLE.stackState == null) {
+      stack.clear();
+    } else {
+      stack = currentBBLE.stackState.deepCopy();
+    }
   }
 
   // pops the length off the stack
@@ -427,9 +557,7 @@ public final class BC2IR {
     if (DBG_BB || DBG_SELECTED) {
       db("generating code into " + currentBBLE + " with runoff " + runoff);
     }
-    currentBBLE.setGenerated();
-    endOfBasicBlock = fallThrough = false;
-    lastInstr = null;
+    initStateForCurrentBlock();
     bcodes.reset(fromIndex);
     while (true) {
       // Must keep currentBBLE.high up-to-date in case we try to jump into
@@ -2663,15 +2791,27 @@ public final class BC2IR {
           return;
         }
         if (fallThrough) {
-          if (VM.VerifyAssertions) opt_assert(bcodes.index() < bcodes.length());
-          // Get/Create fallthrough BBLE and record it as
-          // currentBBLE's fallThrough.
-          currentBBLE.fallThrough = getOrCreateBlock(bcodes.index());
-          currentBBLE.block.insertOut(currentBBLE.fallThrough.block);
+          createNormalFallThrough();
         }
         return;
       }
     }
+  }
+  /**
+   * Create a fall through as it is used in normal bytecode generation.
+   */
+  private void createNormalFallThrough() {
+    if (VM.VerifyAssertions) opt_assert(bcodes.index() < bcodes.length());
+    // Get/Create fallthrough BBLE and record it as
+    // currentBBLE's fallThrough.
+    currentBBLE.fallThrough = getOrCreateBlock(bcodes.index());
+    currentBBLE.block.insertOut(currentBBLE.fallThrough.block);
+  }
+
+  private void initStateForCurrentBlock() {
+    currentBBLE.setGenerated();
+    endOfBasicBlock = fallThrough = false;
+    lastInstr = null;
   }
 
   Instruction _unaryHelper(Operator operator, Operand val, TypeReference type) {
@@ -4990,7 +5130,7 @@ public final class BC2IR {
    * @param i local variable number
    * @return a copy of the local variable
    */
-  private Operand getLocal(int i) {
+  Operand getLocal(int i) {
     Operand local = _localState[i];
     if (DBG_LOCAL || DBG_SELECTED) db("getting local " + i + " for use: " + local);
     return local.copy();
@@ -5004,7 +5144,7 @@ public final class BC2IR {
    * @param i local variable number
    * @return a copy of the local variable
    */
-  private Operand getLocalDual(int i) {
+  Operand getLocalDual(int i) {
     if (VM.VerifyAssertions) opt_assert(_localState[i + 1] == DUMMY);
     Operand local = _localState[i];
     if (DBG_LOCAL || DBG_SELECTED) db("getting local " + i + " for use: " + local);
@@ -5034,6 +5174,10 @@ public final class BC2IR {
     _localState[i + 1] = DUMMY;
   }
 
+  private void updateRunoff() {
+    runoff = Math.min(blocks.getNextBlockBytecodeIndex(currentBBLE), currentBBLE.max);
+  }
+
   /**
    * Dummy stack slot
    * @see BC2IR#DUMMY
@@ -5054,4 +5198,721 @@ public final class BC2IR {
       return "<DUMMY>";
     }
   }
+
+
+  /**
+   * Manages information for specializing methods on parameters and provides methods
+   * to generate the required checks and the actual calls.
+   */
+  private final class SpecializationManager {
+
+    /* Error messages */
+
+    private static final String ERROR_ONLY_ONE_SPECIALIZED_PARAMETER_ALLOWED = "At most 1 specialized parameter supported!";
+    private static final String ERROR_NO_SPECIALIZED_PARAMETER_FOUND = "No specialized parameter found!";
+    private static final String ERROR_OPERAND_STACK_NOT_EMPTY = "The operand stack was not empty when inserting calls for specialized methods!";
+
+    /**
+     *  The start bytecode index for basic blocks that contain checks for specialized parameters.
+     *  Each basic block has its own index that it uses for all its instructions.
+     */
+    private int startIndexChecks;
+
+    /**
+     * The start bytecode index for basic blocks that contain calls to specialized methods.
+     * Each basic block has its own index that it uses for all its instructions.
+     */
+    private int startIndexCalls;
+
+    /**
+     * The specialized methods that can be called from the method after
+     * generation has finished.
+     */
+    private final List<SpecializedMethod> specializedMethods;
+
+    /**
+     * The specialized method whose checks and whose call will be generated
+     * next.
+     */
+    private SpecializedMethod nextMethodToProcess;
+
+    /**
+     * Index of {@link #nextMethodToProcess} in {@link #specializedMethods}.
+     */
+    private int specializedMethodIndex;
+
+
+    /**
+     * Creates a new {@link SpecializationManager}. It's the clients'
+     * responsibility to ensure that the startIndices are far enough away from
+     * each other so that calls to
+     * {@link #getBCIForNextSpecializedCallBlockInstruction()} or
+     * {@link #getBCIForNextSpecializedCheckBlock()} do not lead to overlaps of
+     * the ranges.
+     *
+     * @param startIndexChecks
+     *          the start BCI for checks. Should be negative.
+     * @param startIndexCalls
+     *          the start BCI for calls. Should be negative.
+     */
+    private SpecializationManager(int startIndexChecks, int startIndexCalls) {
+      this.startIndexChecks = startIndexChecks;
+      this.startIndexCalls = startIndexCalls;
+
+      specializedMethods = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(gc.getMethod());
+      nextMethodToProcess = specializedMethods.get(specializedMethodIndex);
+    }
+
+    private void prepareForNextSpecializedVersion() {
+      specializedMethodIndex++;
+      if (specializedMethodIndex < specializedMethods.size()) {
+        nextMethodToProcess = specializedMethods.get(specializedMethodIndex);
+      } else {
+        nextMethodToProcess = null;
+      }
+    }
+
+    private int getBCIForNextSpecializedCheckBlock() {
+      return startIndexChecks++;
+    }
+
+    private int getBCIForNextSpecializedCallBlockInstruction() {
+      return startIndexCalls++;
+    }
+
+    /**
+     * Initializes the stack so that specialized methods can be called. The stack size
+     * must be adjusted if and only if the operand stack does not have enough space to
+     * hold all parameters that are required for calling a specialized method.
+     *
+     * @param context the generation context
+     * @param operandWords the number of operand words required by the method
+     */
+    private void initializeStackForCallingSpecializedMethods() {
+      int minimumWordCount = gc.getMethod().getOperandWords();
+
+      int parameterWordsForThisMethod = gc.getMethod().getParameterWords();
+      if (!gc.getMethod().isStatic()) {
+        parameterWordsForThisMethod++;
+      }
+      minimumWordCount = Math.max(minimumWordCount, parameterWordsForThisMethod);
+
+      stack = new OperandStack(minimumWordCount);
+    }
+
+    /**
+     * Initializes the stack so that stores to specialized methods are possible.
+     * Those are possible by default except for strange cases where the operand stack
+     * has a size of 0. Those cases are not interesting for specialization, but
+     * are handled for completeness.
+     */
+    private void initializeStackForStoresToSpecializedMethods() {
+      int operandWords = gc.getMethod().getOperandWords();
+      if (operandWords == 0) {
+        stack = new OperandStack(1);
+      }
+    }
+
+
+    private BasicBlockLE appendInstructionsForCheckBlockAndCallBlock(BasicBlockLE checkBBLE, GenerationContext gc) {
+      BasicBlockLE callBlock = insertCheckForSpecializedMethod(checkBBLE, gc, nextMethodToProcess);
+      return callBlock;
+    }
+
+    private BasicBlockLE insertCheckForSpecializedMethod(BasicBlockLE checkBBLE, GenerationContext gc, SpecializedMethod currentMethod) {
+      instrIndex = checkBBLE.low;
+      ParameterValueSpecializationContext pvsc = (ParameterValueSpecializationContext) currentMethod.getSpecializationContext();
+      AbstractParameterInfo[] paramInfos = pvsc.getParameterInformation();
+
+      int indexInContext = determineIndexOfSpecializedParameter(paramInfos);
+      int argumentOffset = gc.getMethod().isStatic() ? 0 : 1;
+      int indexAsArgument = indexInContext + argumentOffset;
+
+      Operand argument = null;
+      for (int argIndex = argumentOffset, localIndex = argumentOffset; argIndex < gc.getArguments().length; argIndex++, localIndex++) {
+        Operand argumentFromGenerationContext = gc.getArguments()[argIndex];
+        Operand local = null;
+        if (isTwoWordWide(argumentFromGenerationContext)) {
+          local = getLocalDual(localIndex);
+          localIndex++;
+        } else {
+          local = getLocal(localIndex);
+        }
+
+        if (argIndex == indexAsArgument) {
+          argument = local;
+          break;
+        }
+      }
+
+      if (VM.VerifyAssertions) {
+        VM._assert(argument != null, "Did not find argument in locals!");
+      }
+
+      Operand opToCompareWith = null;
+      boolean generateInstanceOf = false;
+      AbstractParameterInfo specializedParameterInfo = paramInfos[indexInContext];
+      if (specializedParameterInfo.hasTypeInformation()) {
+        TypeValueForObjectParameter tvop = (TypeValueForObjectParameter) specializedParameterInfo;
+        opToCompareWith = makeTypeOperand(tvop.getObjectType().getTypeRef().peekType());
+        generateInstanceOf = true;
+      } else {
+        AbstractParameterValue apv = (AbstractParameterValue) specializedParameterInfo;
+        opToCompareWith = apv.buildOperand();
+      }
+
+      Instruction comparison = null;
+      RegisterOperand comparisonResult = null;
+      comparisonResult = gc.getTemps().makeTempInt();
+
+      if (generateInstanceOf) {
+        TypeReference typeRef = argument.getType();
+        if (VM.VerifyAssertions) {
+          VM._assert(argument.isRef(), "Tried to generate instanceof on non-reference type!");
+        }
+
+        TypeOperand typeOp = (TypeOperand) opToCompareWith;
+
+        boolean classLoading = couldCauseClassLoading(typeRef);
+        if (classLoading) {
+          comparison = InstanceOf.create(INSTANCEOF_UNRESOLVED, comparisonResult, typeOp, argument);
+          rectifyStateWithErrorHandler();
+        } else {
+          if (isNonNull(argument)) {
+            if (VM.VerifyAssertions) {
+              VM._assert(argument.isRegister(), "Argument was not a register!");
+            }
+            RegisterOperand argumentRegisterOp = argument.asRegister();
+            comparison = InstanceOf.create(INSTANCEOF_NOTNULL, comparisonResult, typeOp, argument, argumentRegisterOp.getGuard());
+          } else {
+            comparison = InstanceOf.create(INSTANCEOF, comparisonResult, typeOp, argument);
+          }
+        }
+      }
+
+      // Note that there's no refinement of the type here because a successful instanceof
+      // leads directly to a call to the specialized method, i.e. on that path the register
+      // is used only as an argument for the call.
+
+      ConditionOperand co = ConditionOperand.EQUAL();
+      boolean comparisonNeeded = true;
+      if (opToCompareWith.isInt()) {
+        comparison = BooleanCmp.create(Operators.BOOLEAN_CMP_INT, comparisonResult, opToCompareWith, argument, co, new BranchProfileOperand());
+      } else if (opToCompareWith.isLong()) {
+        comparison = BooleanCmp.create(Operators.BOOLEAN_CMP_LONG, comparisonResult, opToCompareWith, argument, co, new BranchProfileOperand());
+      } else if (opToCompareWith.isFloat() || opToCompareWith.isDouble()) {
+        // translates to floating point comparison, could also use translateCMPL because
+        // it's the same for equals
+        co.translateCMPG();
+        comparisonNeeded = false;
+      } else if (opToCompareWith.isNullConstant()) {
+        // will use direct comparison with null
+        comparisonNeeded = false;
+      } else if (opToCompareWith.isType()) {
+        // NB: opToCompareWith cannot be ref because TypeOperands are used for reference values
+
+        // No actions needed, code was generated before
+      } else {
+        if (VM.VerifyAssertions) {
+          VM._assert(VM.NOT_REACHED, "Checks NYI");
+        }
+      }
+      if (comparisonNeeded) {
+        appendInstruction(comparison);
+      }
+
+      RegisterOperand guard = gc.getTemps().makeTempValidation();
+      ConditionOperand equal = ConditionOperand.EQUAL();
+      // TODO could calculate a probability here, e.g. based on profiling
+      // TODO would this probability be overwritten later?
+      BranchProfileOperand branchProfile = new BranchProfileOperand();
+      int realTarget = getBCIForNextSpecializedCallBlockInstruction();
+
+      int offset = realTarget - instrIndex;
+      BranchOperand specializedCallsBlockTarget = generateTarget(offset);
+      BasicBlockLE callBlock = blocks.getOrCreateBlock(realTarget, checkBBLE,
+      stack, _localState);
+
+      //TODO try out using IFCMP directly
+
+      IntConstantOperand trueOperand = new IntConstantOperand(1);
+      Instruction ifCmp = IfCmp.create(Operators.INT_IFCMP, guard, comparisonResult, trueOperand,
+      equal, specializedCallsBlockTarget, branchProfile);
+      if (opToCompareWith.isFloat()) {
+        ifCmp = IfCmp.create(Operators.FLOAT_IFCMP, guard, opToCompareWith, argument, co, specializedCallsBlockTarget, branchProfile);
+      } else if (opToCompareWith.isDouble()) {
+        ifCmp = IfCmp.create(Operators.DOUBLE_IFCMP, guard, opToCompareWith, argument, co, specializedCallsBlockTarget, branchProfile);
+      } else if (opToCompareWith.isNullConstant()) {
+        RegisterOperand nullGuard = null;
+
+        if (VM.VerifyAssertions) {
+          String badArgumentMsg = "Argument was not a reference: " + argument;
+          if (!argument.isRef()) {
+            VM._assert(VM.NOT_REACHED, badArgumentMsg);
+          }
+        }
+
+        if (argument.isRegister()) {
+          RegisterOperand argAsRegister = argument.asRegister();
+          if (argAsRegister.getRegister().isLocal()) {
+            int localNumber = gc.getLocalNumberFor(argAsRegister.getRegister(), argAsRegister.getType());
+            if (localNumber != -1) {
+              Operand local = getLocal(localNumber);
+              if (local.isRegister()) {
+                RegisterOperand locr = local.asRegister();
+                nullGuard = gc.makeNullCheckGuard(locr.getRegister());
+                locr.setGuard(nullGuard.copyD2U());
+                setLocal(localNumber, local);
+              } else {
+                if (VM.VerifyAssertions) {
+                  VM._assert(VM.NOT_REACHED, "Local was not register!");
+                }
+              }
+            } else {
+              if (VM.VerifyAssertions) {
+                VM._assert(VM.NOT_REACHED, "Local was not found, i.e. localNumber was -1");
+              }
+            }
+          } else {
+            if (VM.VerifyAssertions) {
+              VM._assert(VM.NOT_REACHED, "Register for argument was not local!");
+            }
+          }
+        }
+
+        if (nullGuard == null) {
+          nullGuard = gc.getTemps().makeTempValidation();
+        }
+
+        ifCmp = IfCmp.create(REF_IFCMP, nullGuard, argument, opToCompareWith, co, specializedCallsBlockTarget, branchProfile);
+      }
+      appendInstruction(ifCmp);
+      return callBlock;
+    }
+
+    private void addStoresToCurrentBBLE() {
+      initializeStackStateForCurrentBBLE();
+      initializeLocalStateForCurrentBBLE();
+      initStateForCurrentBlock();
+
+      instrIndex = currentBBLE.low;
+      insertMovesForSpecializedParameters();
+
+      if (VM.VerifyAssertions) {
+        VM._assert(currentBBLE.isGenerated(), "Not generated after moves");
+      }
+
+      int normalBytecodeIndex = 0;
+      assertThatStackisEmpty();
+      BasicBlockLE blockAtZero = blocks.getOrCreateBlock(normalBytecodeIndex, currentBBLE, stack, _localState);
+      endBasicBlockAtBCI(instrIndex);
+      updateRunoff();
+      createFallThroughToIndex(normalBytecodeIndex);
+
+      if (VM.VerifyAssertions) {
+        VM._assert(currentBBLE.isGenerated());
+      }
+
+      // Prepare for starting at 0
+
+      prepareForStartingAtZero(blockAtZero);
+
+      reinitializeOperandStack();
+    }
+
+    private void insertMovesForSpecializedParameters() {
+      int offset = gc.getMethod().isStatic() ? 0 : 1;
+
+      for (int argIdx = offset, localIndex = offset; argIdx < gc.getArguments().length; argIdx++, localIndex++) {
+        Operand argument = gc.getArguments()[argIdx];
+
+        Operand nonCastedLocal = null;
+        if (isTwoWordWide(argument)) {
+          nonCastedLocal = getLocalDual(localIndex);
+        } else {
+          nonCastedLocal = getLocal(localIndex);
+        }
+
+        if (VM.VerifyAssertions) {
+          boolean nonCastLocalIsRegOp = nonCastedLocal instanceof RegisterOperand;
+          if (!nonCastLocalIsRegOp) {
+            String badNonCastedLocal = "Local " + nonCastedLocal + " " +
+                "at start of method was not a RegisterOperand. This is unsupported." +
+                " Specialized methods are currently not being inlined so inlining cannot be the cause.";
+            VM._assert(VM.NOT_REACHED, badNonCastedLocal);
+          }
+        }
+
+        AbstractParameterInfo api = gc.parameterValues[argIdx - offset];
+        if ((api != null) && (!api.hasTypeInformation())) {
+          AbstractParameterValue apv = (AbstractParameterValue) api;
+          ConstantOperand co = apv.buildOperand();
+          Instruction inst = null;
+          if (argument.isRef()) {
+            if (VM.VerifyAssertions) {
+              boolean constantIsNullConstant = co instanceof NullConstantOperand;
+              if (!constantIsNullConstant) {
+                String badConstantMsg = "Expected NullConstantOperand but was " + argument;
+                VM._assert(VM.NOT_REACHED, badConstantMsg);
+              }
+            }
+            push(co);
+            inst = do_astore(localIndex);
+          } else {
+            inst = do_store(localIndex, co);
+          }
+          if (inst != null) {
+            appendInstruction(inst);
+          }
+        }
+
+        if (isTwoWordWide(argument)) {
+          localIndex++;
+        }
+
+      }
+    }
+
+    private void initializeBBLEState(BasicBlockLE blockToGenerate, int startBCI) {
+      currentBBLE = blockToGenerate;
+      initializeStackStateForCurrentBBLE();
+      initializeLocalStateForCurrentBBLE();
+      initStateForCurrentBlock();
+
+      instrIndex = startBCI;
+    }
+
+    /**
+     * Verifies that is is ok to use <code>null</code> as a stack.
+     * This only justified when the stack is empty.
+     * <p>
+     * Note: This method will not fail an assertion or throw an exception
+     * if the stack is not empty.
+     *
+     * @throws OptimizingCompilerException when the stack is not empty
+     *  and assertions are disabled
+     */
+    private void assertThatStackisEmpty() {
+      if (VM.VerifyAssertions) {
+        VM._assert(stack.isEmpty(), ERROR_OPERAND_STACK_NOT_EMPTY);
+      } else {
+        if (!stack.isEmpty()) {
+          OptimizingCompilerException.UNREACHABLE(ERROR_OPERAND_STACK_NOT_EMPTY);
+        }
+      }
+    }
+
+    private boolean isTwoWordWide(Operand operand) {
+      return operand.isDouble()  || operand.isLong();
+    }
+
+    private int determineIndexOfSpecializedParameter(AbstractParameterInfo[] paramInfos) {
+      int argIndex = 0;
+      int specParamCount = 0;
+      for (int paramInfo = 0; paramInfo < paramInfos.length; paramInfo++) {
+        if (paramInfos[paramInfo] != null) {
+          specParamCount++;
+          argIndex = paramInfo;
+        }
+      }
+
+      if (VM.VerifyAssertions) {
+        VM._assert(specParamCount != 0, ERROR_NO_SPECIALIZED_PARAMETER_FOUND);
+        VM._assert(specParamCount <= 1, ERROR_ONLY_ONE_SPECIALIZED_PARAMETER_ALLOWED);
+      } else {
+        if (specParamCount == 0) {
+          OptimizingCompilerException.UNREACHABLE(ERROR_NO_SPECIALIZED_PARAMETER_FOUND);
+        } else if (specParamCount > 1) {
+          OptimizingCompilerException.UNREACHABLE(ERROR_ONLY_ONE_SPECIALIZED_PARAMETER_ALLOWED);
+        }
+      }
+      return argIndex;
+    }
+
+    private void changeMethodOpForSpecializedCall(MethodOperand methOp) {
+      if (VM.VerifyAssertions) {
+        VM._assert(nextMethodToProcess != null, "spMethod was null!");
+      }
+
+      // Setting this enough to get a specialized call. The details are handled
+      // by callHelper in ConvertToLowLevelIR.
+      methOp.spMethod = nextMethodToProcess;
+    }
+
+    private boolean hasUnprocessedSpecializedVersions() {
+      return nextMethodToProcess != null;
+    }
+
+    private boolean isLastSpecializedVersion() {
+      return specializedMethodIndex >= (specializedMethods.size() - 1);
+    }
+
+    private void pushParameters() {
+      int methodArgumentCount = gc.getArguments().length;
+      for (int argIndex = 0, localIndex = 0; argIndex < methodArgumentCount; argIndex++, localIndex++) {
+        Operand argument = gc.getArguments()[argIndex];
+
+        Operand local = null;
+        if (isTwoWordWide(argument)) {
+          local = getLocalDual(localIndex);
+          localIndex++;
+          pushDual(local);
+        } else {
+          local = getLocal(localIndex);
+          push(local);
+        }
+      }
+    }
+
+
+    private Instruction insertCallToSpecializedInstanceMethod(MethodReference methodRef) {
+      Instruction callInstruction;
+      RVMMethod target = methodRef.resolveInvokeSpecial();
+
+      // normal calls would create an OSR barrier here, but as calls are not subject to
+      // inlining, no OSR barriers are created for the specialized calls.
+
+      pushParameters();
+      MethodOperand methOp = MethodOperand.SPECIAL(methodRef, target);
+      callInstruction = _callHelper(methodRef, methOp);
+      verifyThatCallInstructionWasNotRemoved(callInstruction);
+
+      // Handle possibility of dynamic linking. Must be done before null_check!
+      // NOTE: different definition of unresolved due to semantics of invokespecial.
+      if (target == null) {
+        final String unresolvedCall = "Unresolved call of special version!";
+        if (VM.VerifyAssertions) {
+          VM._assert(VM.NOT_REACHED, unresolvedCall);
+        } else {
+          OptimizingCompilerException.UNREACHABLE("BC2IR", unresolvedCall);
+        }
+      } else {
+        Call.setAddress(callInstruction, new AddressConstantOperand(target.getOffset()));
+        changeMethodOpForSpecializedCall(methOp);
+      }
+
+      // null check receiver
+      Operand receiver = Call.getParam(callInstruction, 0);
+      clearCurrentGuard();
+      if (do_NullCheck(receiver)) {
+        // call will always raise null pointer exception
+        callInstruction = null;
+        VM.sysFail("Call of special version in general version of method will always raise null-pointer exception on receiver!");
+      }
+      Call.setGuard(callInstruction, getCurrentGuard());
+      return callInstruction;
+    }
+
+    private void verifyThatCallInstructionWasNotRemoved(Instruction callInstruction) {
+      if (callInstruction == null) {
+        if (VM.VerifyAssertions) {
+          // Call instruction cannot be simplified away - the simplifier should not
+          // be able to remove anything as the cases covered by it cannot appear
+          // for the calls here.
+          VM._assert(VM.NOT_REACHED, "Call inst was simplified away!");
+        } else {
+          OptimizingCompilerException.UNREACHABLE("Call instruction for a specialized call was simplified away." +
+           "That's unexpected and probably a bug in the implementation of specialization.");
+        }
+      }
+    }
+
+    private Instruction insertCallToSpecializedStaticMethod(MethodReference methodRef) {
+      // A non-magical invokestatic.  Create call instruction.
+      boolean unresolved = methodRef.needsDynamicLink(bcodes.getMethod());
+      if (VM.VerifyAssertions) {
+        VM._assert(!unresolved, "Target of call to specialized method is unresolved!");
+      }
+      RVMMethod target = methodRef.peekResolvedMethod();
+
+      Instruction callInstruction = null;
+
+      // normal calls would create an OSR barrier here, but as calls are not subject to
+      // inlining, no OSR barriers are created for the specialized calls.
+
+      pushParameters();
+      callInstruction = _callHelper(methodRef, MethodOperand.STATIC(methodRef, target));
+      verifyThatCallInstructionWasNotRemoved(callInstruction);
+
+      // Not sure if this is necessary, but JBC_invokestatic checks if the call
+      // conforms (in contrast to all other JBC_invoke*)
+      if (VM.VerifyAssertions) {
+        VM._assert(Call.conforms(callInstruction), "Specialized call did not conform!");
+      }
+
+      MethodOperand methOp = Call.getMethod(callInstruction);
+      if (methOp.getTarget() == target) {
+        Call.setAddress(callInstruction, new AddressConstantOperand(target.getOffset()));
+        changeMethodOpForSpecializedCall(methOp);
+      }
+      return callInstruction;
+    }
+
+    /**
+     * Generates a basic block that contains the call to the specialized method that
+     * is currently being processed. The block ends with a GOTO to epilogue.
+     *
+     * @param checkBlock the {@link BasicBlockLE} with the checks that guard entry to this call block
+     * @param callBlock the {@link BasicBlockLE} that the call will be generated into
+     */
+    private void generateCallBlock(BasicBlockLE checkBlock, BasicBlockLE callBlock) {
+      currentBBLE = callBlock;
+      initializeStackStateForCurrentBBLE();
+      initializeLocalStateForCurrentBBLE();
+      initStateForCurrentBlock();
+      instrIndex = callBlock.low;
+
+      MethodReference methodRef = gc.getMethod().getMemberRef().asMethodReference();
+      Instruction s = null;
+      if (gc.getMethod().isStatic()) {
+        s = insertCallToSpecializedStaticMethod(methodRef);
+      } else {
+        s = insertCallToSpecializedInstanceMethod(methodRef);
+      }
+
+      // noninlined CALL must be treated as potential throw of anything
+      rectifyStateWithExceptionHandlers();
+      appendInstruction(s);
+      gc.markAsSpecializedCallInGeneralMethod(s);
+
+      RegisterOperand result = Call.getResult(s);
+      TypeReference returnType = gc.getMethod().getReturnType();
+
+      if (returnType.isReferenceType()) {
+        if (VM.VerifyAssertions && !result.isDefinitelyNull()) {
+          TypeReference retType = result.getType();
+          assertIsAssignable(returnType, retType);
+        }
+        _returnHelper(REF_MOVE, result);
+      } else if (returnType.isLongType()) {
+        _returnHelper(LONG_MOVE, result);
+      } else if (returnType.isFloatType()) {
+        _returnHelper(FLOAT_MOVE, result);
+      } else if (returnType.isDoubleType()) {
+        _returnHelper(DOUBLE_MOVE, result);
+      } else if (returnType.isVoidType()) {
+        _returnHelper(null, null);
+      } else if (returnType.isIntLikeType()) {
+        _returnHelper(INT_MOVE, result);
+      } else {
+        if (VM.VerifyAssertions) {
+          String badReturnType = "Unhandled return type: " + returnType;
+          VM._assert(VM.NOT_REACHED, badReturnType);
+        }
+        VM.sysFail("Unhandled return type for specialized call block, with assertions disabled");
+      }
+
+      currentBBLE.high = callBlock.low;
+      currentBBLE.max = callBlock.low;
+      currentBBLE.fallThrough = null;
+    }
+
+    private void insertCallsToSpecializedMethods(BasicBlockLE normalEntry) {
+      int index = getBCIForNextSpecializedCheckBlock();
+
+      initializeStackStateForCurrentBBLE();
+      initializeLocalStateForCurrentBBLE();
+      initStateForCurrentBlock();
+
+      instrIndex = currentBBLE.low;
+      if (VM.VerifyAssertions) {
+        VM._assert(index == currentBBLE.low);
+      }
+
+      int normalBytecodeIndex = 0;
+      assertThatStackisEmpty();
+      BasicBlockLE blockAtZero = null;
+
+
+      //TODO Some assignments to BC2IR's variables might be unnecessary.
+
+      // Main generation loop for the basic blocks for checks and calls.
+      // When a check block is created, the call block is created at the same time. Before
+      // finishing (i.e. generating) the check block, the successor check block will be
+      // created, if necessary.
+
+      BasicBlockLE firstCheckBlock = currentBBLE;
+      BasicBlockLE checkBlock = firstCheckBlock;
+      BasicBlockLE fromBlock = null;
+      while (hasUnprocessedSpecializedVersions()) {
+        BasicBlockLE callBlock = startNewCheckAndNewCallBlock(checkBlock, index);
+        BasicBlockLE successorOfGeneratedCheckBlock = null;
+
+        fromBlock = checkBlock;
+
+        int indexForNextBlock = Integer.MAX_VALUE;
+        if (isLastSpecializedVersion()) {
+          blockAtZero = blocks.getOrCreateBlock(normalBytecodeIndex, currentBBLE, stack, _localState);
+          successorOfGeneratedCheckBlock = blockAtZero;
+          indexForNextBlock = 0;
+        } else {
+          indexForNextBlock = getBCIForNextSpecializedCheckBlock();
+          // NOTE: Normal stack can be used from now on because all BasicBlocks that are accessed
+          // now have an associated BasicBlockLE.
+          BasicBlockLE successorCheckBlock = blocks.getOrCreateBlock(indexForNextBlock, fromBlock, stack, _localState);
+          successorOfGeneratedCheckBlock = successorCheckBlock;
+        }
+
+        // currentBBLE is checkBlock at the moment
+
+        updateRunoff();
+        createFallThroughToIndex(indexForNextBlock);
+
+        generateCallBlock(checkBlock, callBlock);
+
+        prepareForNextSpecializedVersion();
+
+        if (hasUnprocessedSpecializedVersions()) {
+          checkBlock = successorOfGeneratedCheckBlock;
+          instrIndex = indexForNextBlock;
+        }
+      }
+
+      prepareForStartingAtZero(blockAtZero);
+
+      reinitializeOperandStack();
+    }
+
+    private void prepareForStartingAtZero(BasicBlockLE blockAtZero) {
+      // Prepare for starting at 0
+
+      instrIndex = 0;
+      currentBBLE = blockAtZero;
+      runoff = currentBBLE.max;
+    }
+
+    /**
+     * Re-initializes the operand stack to confirm to declared operand count.
+     */
+    private void reinitializeOperandStack() {
+      stack = new OperandStack(gc.getMethod().getOperandWords());
+    }
+
+    private BasicBlockLE startNewCheckAndNewCallBlock(BasicBlockLE checkBlock, int index) {
+      initializeBBLEState(checkBlock, index);
+
+      BasicBlockLE callBlock = appendInstructionsForCheckBlockAndCallBlock(checkBlock, gc);
+
+      endBasicBlockAtBCI(index);
+
+      return callBlock;
+    }
+
+    private void endBasicBlockAtBCI(int endBCI) {
+      endOfBasicBlock = true;
+      currentBBLE.high = endBCI;
+    }
+
+    /**
+     * Create a fall through to a given index, for use in specialized blocks.
+     *
+     * @param index the index of the {@link BasicBlockLE} that the block will fall through
+     */
+    private void createFallThroughToIndex(int index) {
+      fallThrough = true;
+      currentBBLE.fallThrough = getOrCreateBlock(index);
+      currentBBLE.block.insertOut(currentBBLE.fallThrough.block);
+    }
+  }
+
 }

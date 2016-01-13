@@ -32,6 +32,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.util.Services;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -128,6 +129,7 @@ public final class TraceInterface extends org.mmtk.vm.TraceInterface {
 
   @Override
   @NoInline
+  @MakesAssumptionsAboutCallStack
   @Interruptible // This can't be uninterruptible --- it is an IO routine
   public Address skipOwnFramesAndDump(ObjectReference typeRef) {
     TIB tib = Magic.addressAsTIB(typeRef.toAddress());

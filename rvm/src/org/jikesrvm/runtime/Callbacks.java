@@ -19,6 +19,7 @@ import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
+import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 import org.jikesrvm.scheduler.RVMThread;
 
 /**
@@ -393,6 +394,16 @@ public final class Callbacks {
      *        Values are constants in CompiledMethod
      */
     void notifyMethodCompile(RVMMethod method, int compiler);
+
+
+    /**
+     * Notify the monitor that a method is about to be opt-compiled.
+     * NOTE: use VM.runningVM and VM.writingBootImage to determine
+     *       whether the VM is running
+     * @param method method the method that will be compiled
+     * @param plan the compilation plan used for opt compilation
+     */
+    void notifyMethodOptCompile(RVMMethod method, CompilationPlan plan);
   }
 
   /**
@@ -446,6 +457,39 @@ public final class Callbacks {
         VM.sysWrite("\n");
       }
       ((MethodCompileMonitor) l.callback).notifyMethodCompile(method, compiler);
+    }
+    methodCompileEnabled = true;
+  }
+
+  /**
+   * Notify the callback manager that a method is about to be compiled.
+   * NOTE: use VM.runningVM and VM.writingBootImage to determine
+   *       whether the VM is running
+   * @param method the method that will be compiled
+   * @param compiler the compiler that will be invoked
+   *        Values are constants in CompiledMethod
+   */
+  public static void notifyMethodOptCompile(RVMMethod method, CompilationPlan plan) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!methodCompileEnabled) return;
+    methodCompileEnabled = false;
+    if (TRACE_METHODCOMPILE) {
+      //VM.sysWrite(getThread(), false);
+      //VM.sysWrite(": ");
+      VM.sysWrite("invoking method compile monitors: ");
+      VM.sysWrite(method);
+      VM.sysWrite(":");
+      VM.sysWrite(plan.toString());
+      VM.sysWrite("\n");
+      //printStack("From: ");
+    }
+    for (CallbackList l = methodCompileCallbacks; l != null; l = l.next) {
+      if (TRACE_METHODCOMPILE) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((MethodCompileMonitor) l.callback).notifyMethodOptCompile(method, plan);
     }
     methodCompileEnabled = true;
   }

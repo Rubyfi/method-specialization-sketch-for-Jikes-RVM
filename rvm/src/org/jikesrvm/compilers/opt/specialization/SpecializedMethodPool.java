@@ -14,6 +14,7 @@ package org.jikesrvm.compilers.opt.specialization;
 
 import org.jikesrvm.compilers.common.CodeArray;
 import org.jikesrvm.compilers.common.CompiledMethod;
+import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * This class holds the static array of pointers to instructions
@@ -21,10 +22,11 @@ import org.jikesrvm.compilers.common.CompiledMethod;
  */
 public final class SpecializedMethodPool {
   private static final int SPECIALIZED_METHOD_COUNT = 1024;
-  static int specializedMethodCount = 0;
+  private static int specializedMethodCount = 0;
   static CodeArray[] specializedMethods = new CodeArray[SPECIALIZED_METHOD_COUNT];
 
-  public int getSpecializedMethodCount() {
+  @Uninterruptible
+  public static int getSpecializedMethodCount() {
     return specializedMethodCount;
   }
 
@@ -48,8 +50,14 @@ public final class SpecializedMethodPool {
    * @param smid the id of the specialized method
    * @return whether thereis  a compiled version of a particular specialized method
    */
+  @Uninterruptible
   public static boolean hasCompiledVersion(int smid) {
     return specializedMethods[smid] != null;
+  }
+
+  @Uninterruptible
+  public static CodeArray getCodeArrayForSpecializedMethod(int smid) {
+    return specializedMethods[smid];
   }
 
   /**

@@ -1517,4 +1517,62 @@ public final class Magic {
     }
     return false;
   }
+
+
+  /**
+   * Does the specified parameter have a type that is more specific than the
+   * one given in the method signature?
+   * <p>
+   * Count starts at zero and includes the 'this' parameter for instance methods.
+   * <p>
+   * TODO This was used previously in my specialization implementation but
+   * has since been replaced with . I'm leaving it in as it might be useful
+   * for inlining.
+   *
+   * @param index the index of the parameter whose type should be checked
+   * @return see description
+   */
+  public static boolean isSpecializedTypeParameter(int index) {
+    if (VM.VerifyAssertions && VM.runningVM) {
+      VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    }
+    return false;
+  }
+
+  /**
+   * Is the operand at the given local number a {@link ConstantOperand} at this
+   * point in the code?
+   *
+   * @param localIndex the local's index
+   * @return <code>true</code> if and only if the local at the given index
+   *  is a {@link ConstantOperand}
+   *
+   * @see BC2IR
+   */
+  public static boolean isConstantLocal(int localIndex) {
+    if (VM.VerifyAssertions && VM.runningVM) {
+      VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    }
+    return false;
+  }
+
+  /**
+   * Does the operand at the given local number have a more precise type than
+   * could be expected from the signature at this point in the code?
+   * <p>
+   * Note: This method is only intended for locals that correspond to parameters.
+   *
+   * @param localIndex the local's index, must correspond to a parameter
+   * @return <code>true</code> if and only if the local at the given index
+   *  has a more precise type than its parameter in the signature
+   *
+   * @see BC2IR
+   */
+  public static boolean isLocalWithSpecializedType(int localIndex) {
+    if (VM.VerifyAssertions && VM.runningVM) {
+      VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    }
+    return false;
+  }
+
 }

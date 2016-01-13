@@ -2262,7 +2262,7 @@ target.jni-suffix=${target.jni-suffix}
 
   <target name="runtime" depends="cross-compile-host,cross-compile-target" description="Build the runtime."/>
 
-  <target name="main" depends="rvm-unit-tests"/>
+  <target name="main" depends="rvm-unit-tests,update-eclipse-project"/>
 
   <!-- Create an image using a profile (which requires first creating a profile) -->
   <target name="profiled-image" description="Compile a baseline version of the RVM for profiling then use the profile information to recompile the given config.name image">

@@ -395,6 +395,7 @@ public abstract class RVMMethod extends RVMMember {
    *  and use C not JNI calling convention
    * @see org.jikesrvm.runtime.SysCall
    */
+  @Uninterruptible
   public final boolean isSysCall() {
     return isNative() && isStatic() && isAnnotationDeclared(TypeReference.SysCall);
   }
@@ -404,6 +405,7 @@ public abstract class RVMMethod extends RVMMember {
    * @see SpecializedMethod
    * @see SpecializedMethodManager
    */
+  @Uninterruptible
   public final boolean isSpecializedInvoke() {
     return isAnnotationDeclared(TypeReference.SpecializedMethodInvoke);
   }
@@ -420,6 +422,7 @@ public abstract class RVMMethod extends RVMMember {
    * @return {@code true} if this method is not present in the source code file
    *  (e.g. because it has been added by a Java compiler like javac)
    */
+  @Uninterruptible
   public boolean isSynthetic() {
     return (modifiers & ACC_SYNTHETIC) != 0;
   }
@@ -428,6 +431,7 @@ public abstract class RVMMethod extends RVMMember {
    * @return {@code true} if this method is a bridge method. Bridge methods are
    *  generated in some cases of generics and inheritance.
    */
+  @Uninterruptible
   public boolean isBridge() {
     return (modifiers & BRIDGE) != 0;
   }
@@ -495,6 +499,7 @@ public abstract class RVMMethod extends RVMMember {
    *
    * @return {@code true} if and only if this method is unpreemptible
    */
+  @Uninterruptible
   public final boolean isUnpreemptible() {
     if (isClassInitializer() || isObjectInitializer()) return false;
     if (isObjectInitializerHelper()) return false;
@@ -512,6 +517,7 @@ public abstract class RVMMethod extends RVMMember {
    *
    * @return {@code true} if and only if this method is uninterruptible
    */
+  @Uninterruptible
   public final boolean isUninterruptible() {
     if (isClassInitializer() || isObjectInitializer()) return false;
     if (isObjectInitializerHelper()) return false;
@@ -568,6 +574,7 @@ public abstract class RVMMethod extends RVMMember {
    * that is called "under the covers" from the generated code and thus is not subject to
    * inlining via the normal mechanisms.
    */
+  @Uninterruptible
   public boolean isRuntimeServiceMethod() {
     return false; // only NormalMethods can be runtime service impls in Jikes RVM and they override this method
   }

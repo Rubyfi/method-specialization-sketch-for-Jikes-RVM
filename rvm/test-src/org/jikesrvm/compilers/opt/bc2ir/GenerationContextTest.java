@@ -107,7 +107,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     assertThatStateIsCorrectForUnsynchronizedEmptyStaticMethod(nm, cm, io, gc);
   }
@@ -222,7 +222,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -263,7 +263,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -296,7 +296,7 @@ public class GenerationContextTest {
   private static GenerationContext createMostlyEmptyContext(String methodName) throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, methodName);
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
     return gc;
   }
 
@@ -307,7 +307,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -388,7 +388,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -469,7 +469,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, specializedArgumentTypes, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, specializedArgumentTypes, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -519,7 +519,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, specializedArgumentTypes, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, specializedArgumentTypes, null, cm, opts, io);
     assertThatNumberOfParametersIs(gc, 0);
   }
 
@@ -529,7 +529,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -610,7 +610,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     InlineSequence inlineSequence = new InlineSequence(nm);
     assertThatInlineSequenceWasSetCorrectly(gc, inlineSequence);
@@ -757,7 +757,7 @@ public class GenerationContextTest {
     OptOptions opts = new OptOptions();
     opts.ESCAPE_INVOKEE_THREAD_LOCAL = true;
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     assertThatStateIsCorrectForUnsynchronizedEmptyStaticMethod(nm, cm, io, gc);
 
@@ -801,7 +801,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
 
     InlineSequence inlineSequence = new InlineSequence(nm);
@@ -851,7 +851,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] classArgs = {Object.class};
     NormalMethod callee = getNormalMethodForTest("emptyStaticMethodWithObjectParamAndReturnValue", classArgs);
@@ -945,7 +945,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] argumentTypes = {Object.class, double.class, int.class, long.class};
     NormalMethod callee = getNormalMethodForTest("emptyInstanceMethodWithParams", argumentTypes);
@@ -1085,7 +1085,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] argumentTypes = {Object.class, double.class, int.class, long.class};
     NormalMethod callee = getNormalMethodForTest("emptyInstanceMethodWithParams", argumentTypes);
@@ -1202,7 +1202,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] argumentTypes = {Object.class, double.class, int.class, long.class};
     NormalMethod callee = getNormalMethodForTest("emptyInstanceMethodWithParams", argumentTypes);
@@ -1320,7 +1320,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     NormalMethod callee = getNormalMethodForTest("emptyInstanceMethodWithoutAnnotations");
 
@@ -1354,7 +1354,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] argumentTypes = {MethodsForTests.class};
     NormalMethod callee = getNormalMethodForTest("emptyStaticMethodWithReferenceParam", argumentTypes);
@@ -1431,7 +1431,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     ExceptionHandlerBasicBlockBag ebag = getMockEbag();
 
@@ -1472,7 +1472,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     NormalMethod callee = getNormalMethodForTest("emptySynchronizedStaticMethod");
     Instruction callInstr = buildCallInstructionForStaticMethodWithoutReturn(callee, nm);
@@ -1579,7 +1579,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     assertThatStateIsCorrectForUnsynchronizedEmptyStaticMethod(nm, cm, io, gc);
 
@@ -1617,7 +1617,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     assertThatStateIsCorrectForUnsynchronizedEmptyStaticMethod(nm, cm, io, gc);
 
@@ -1651,7 +1651,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext parent = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext parent = new GenerationContext(nm, null, null, cm, opts, io);
     int targetNumberOfNodes = 23456789;
     assertThatContextIsInExpectedState(parent, targetNumberOfNodes);
 
@@ -1742,7 +1742,7 @@ public class GenerationContextTest {
   public void localRegReturnsRegistersThatAreFlaggedAsLocals() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     Register localReg = gc.localReg(0, nm.getDeclaringClass().getTypeRef());
     assertNotNull(localReg);
@@ -1753,7 +1753,7 @@ public class GenerationContextTest {
   public void localRegAlwaysReturnsSameRegisterForSameArguments() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     Register regExpected = gc.localReg(0, nm.getDeclaringClass().getTypeRef());
     Register regActual = gc.localReg(0, nm.getDeclaringClass().getTypeRef());
@@ -1824,7 +1824,7 @@ public class GenerationContextTest {
   public void makeLocalUsesLocalRegToDetermineRegisters() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     int localNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1838,7 +1838,7 @@ public class GenerationContextTest {
   public void packagePrivateMakeLocalReturnsRegWithInheritedFlagsAndGuard() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     int localNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1881,7 +1881,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     int thisLocalNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1897,7 +1897,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     int thisLocalNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1909,7 +1909,7 @@ public class GenerationContextTest {
   public void makeNullCheckGuardReturnsSameGuardForSameRegister() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     int localNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1926,7 +1926,7 @@ public class GenerationContextTest {
   public void makeNullCheckGuardAlwaysReturnsCopies() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     int localNumber = 0;
     TypeReference localType = nm.getDeclaringClass().getTypeRef();
@@ -1947,7 +1947,7 @@ public class GenerationContextTest {
   public void resyncDeletesNullCheckGuardsThatMapToUnusedRegisters() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     RegisterOperand thisLocal = gc.makeLocal(0, nm.getDeclaringClass().getTypeRef());
     Register thisReg = thisLocal.getRegister();
@@ -1966,7 +1966,7 @@ public class GenerationContextTest {
   public void resyncDoesNotDeleteNullCheckGuardsThatMapToUsedRegisters() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
 
     RegisterOperand thisLocal = gc.makeLocal(0, nm.getDeclaringClass().getTypeRef());
     Register thisReg = thisLocal.getRegister();
@@ -1983,7 +1983,7 @@ public class GenerationContextTest {
   public void noNullCheckGuardsCanBeCreatedAfterCloseWasCalled() throws Exception {
     NormalMethod nm = TestingTools.getNormalMethod(MethodsForTests.class, "emptyInstanceMethodWithoutAnnotations");
     OptOptions opts = new OptOptions();
-    GenerationContext gc = new GenerationContext(nm, null, null, opts, null);
+    GenerationContext gc = new GenerationContext(nm, null, null, null, opts, null);
     RegisterOperand thisLocal = gc.makeLocal(0, nm.getDeclaringClass().getTypeRef());
     Register thisReg = thisLocal.getRegister();
     gc.close();
@@ -2004,7 +2004,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = buildOptionsWithMethodToPrintOptionSet(methodName);
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
     assertThat(gc.methodIsSelectedForDebuggingWithMethodToPrint(), is(true));
   }
 
@@ -2015,7 +2015,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = buildOptionsWithMethodToPrintOptionSet(methodName);
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext gc = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext gc = new GenerationContext(nm, null, null, cm, opts, io);
 
     ExceptionHandlerBasicBlockBag ebag = getMockEbag();
     NormalMethod callee = getNormalMethodForTest("emptyStaticMethodWithNoCheckStoreAnnotation");
@@ -2055,7 +2055,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext outermost = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext outermost = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] classArgs = {Object.class};
     NormalMethod callee = getNormalMethodForTest("emptyStaticMethodWithObjectParamAndReturnValue", classArgs);
@@ -2087,7 +2087,7 @@ public class GenerationContextTest {
     CompiledMethod cm = new OptCompiledMethod(-1, nm);
     OptOptions opts = new OptOptions();
     InlineOracle io = new DefaultInlineOracle();
-    GenerationContext outermost = new GenerationContext(nm, null, cm, opts, io);
+    GenerationContext outermost = new GenerationContext(nm, null, null, cm, opts, io);
 
     Class<?>[] classArgs = {Object.class};
     NormalMethod callee = getNormalMethodForTest("emptyStaticMethodWithObjectParamAndReturnValue", classArgs);

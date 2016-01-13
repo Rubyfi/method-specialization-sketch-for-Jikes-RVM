@@ -2440,4 +2440,55 @@ final class BaselineMagic {
     MagicGenerator g = new IsConstantParameter();
     generators.put(getMethodReference(Magic.class, MagicNames.isConstantParameter, int.class, boolean.class), g);
   }
+  /**
+   * Does the requested parameter have a type more specific than the one given
+   * in the method signature? Always false for baseline because the baseline
+   * compiler does not method specialization.
+   */
+  private static final class IsSpecializedTypeParameter extends MagicGenerator {
+    @Override
+    void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
+      asm.emitPOP_Reg(T0);
+      asm.emitPUSH_Imm(0);
+    }
+  }
+  static {
+    MagicGenerator g = new IsSpecializedTypeParameter();
+    generators.put(getMethodReference(Magic.class, MagicNames.isSpecializedTypeParameter, int.class, boolean.class), g);
+  }
+
+  /**
+   * Is the requested local constant? Always false for baseline because
+   * the baseline compiler does not keep track of constants.
+   */
+  private static final class IsConstantLocal extends MagicGenerator {
+    @Override
+    void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
+      asm.emitPOP_Reg(T0);
+      asm.emitPUSH_Imm(0);
+    }
+  }
+  static {
+    MagicGenerator g = new IsConstantLocal();
+    generators.put(getMethodReference(Magic.class, MagicNames.isConstantLocal, int.class, boolean.class), g);
+  }
+
+  /**
+   * Does the local have a more precise type than its corresponding parameter?
+   * Always false for baseline.
+   */
+  private static final class IsLocalWithSpecializedType extends MagicGenerator {
+    @Override
+    void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
+      asm.emitPOP_Reg(T0);
+      asm.emitPUSH_Imm(0);
+    }
+  }
+  static {
+    MagicGenerator g = new IsLocalWithSpecializedType();
+    generators.put(getMethodReference(Magic.class, MagicNames.isLocalWithSpecializedType, int.class, boolean.class), g);
+  }
+
+
+
 }

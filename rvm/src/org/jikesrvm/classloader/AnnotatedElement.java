@@ -200,6 +200,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a Interruptible annotation.
    * @see org.vmmagic.pragma.Interruptible
    */
+  @Uninterruptible
   public final boolean hasInterruptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.Interruptible);
   }
@@ -208,6 +209,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a LogicallyUninterruptible annotation.
    * @see org.vmmagic.pragma.LogicallyUninterruptible
    */
+  @Uninterruptible
   public final boolean hasLogicallyUninterruptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.LogicallyUninterruptible);
   }
@@ -216,6 +218,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a Preemptible annotation.
    * @see org.vmmagic.pragma.Preemptible
    */
+  @Uninterruptible
   public final boolean hasPreemptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.Preemptible);
   }
@@ -224,6 +227,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a UninterruptibleNoWarn annotation.
    * @see org.vmmagic.pragma.UninterruptibleNoWarn
    */
+  @Uninterruptible
   public final boolean hasUninterruptibleNoWarnAnnotation() {
     return isAnnotationDeclared(TypeReference.UninterruptibleNoWarn);
   }
@@ -232,6 +236,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a UninterruptibleNoWarn annotation.
    * @see org.vmmagic.pragma.UninterruptibleNoWarn
    */
+  @Uninterruptible
   public final boolean hasUnpreemptibleNoWarnAnnotation() {
     return isAnnotationDeclared(TypeReference.UnpreemptibleNoWarn);
   }
@@ -240,6 +245,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a Uninterruptible annotation.
    * @see org.vmmagic.pragma.Uninterruptible
    */
+  @Uninterruptible
   public final boolean hasUninterruptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.Uninterruptible);
   }
@@ -255,6 +261,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * @return {@code true} if this element has a Unpreemptible annotation.
    * @see org.vmmagic.pragma.Unpreemptible
    */
+  @Uninterruptible
   public final boolean hasUnpreemptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.Unpreemptible);
   }
@@ -265,6 +272,11 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    */
   public final boolean hasNoOptCompileAnnotation() {
     return isAnnotationPresent(org.vmmagic.pragma.NoOptCompile.class);
+  }
+
+  @Uninterruptible
+  public final boolean hasNoOptCompileAnnotationUnint() {
+    return isAnnotationDeclared(TypeReference.NoOptCompile);
   }
 
   /**
@@ -372,4 +384,10 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
   public final boolean hasNonMovingAllocationAnnotation() {
     return isAnnotationDeclared(TypeReference.NonMovingAllocation);
   }
+
+  @Uninterruptible
+  public final boolean hasMakesAssumptionsAboutCallStackAnnotation() {
+    return isAnnotationDeclared(TypeReference.MakesAssumptionsAboutCallStack);
+  }
+
 }

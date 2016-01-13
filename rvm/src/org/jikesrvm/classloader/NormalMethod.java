@@ -479,6 +479,7 @@ public final class NormalMethod extends RVMMethod {
     return (summaryFlags & HAS_BACK_BRANCH) != 0;
   }
 
+  @Uninterruptible
   @Override
   public boolean isRuntimeServiceMethod() {
     return (summaryFlags & IS_RS_METHOD) != 0;

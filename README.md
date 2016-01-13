@@ -1,3 +1,31 @@
+## Method specialization sketch for Jikes RVM
+
+This repository contains code for an implementation of method specialization for Jikes RVM that I wrote in 2012. The code is incomplete. I was originally planning to do some more work on this but I've come to the conclusion that I would rather spend the time on something else. I'm publishing this as it is; some parts of the code might be useful for someone else.
+
+I've removed the development history by squashing the commits. The original work was done in a Mercurial repository and I didn't want to spend time migrating the history to Git.
+
+# What's implemented?
+The code implements method specialization as a compiler optimization, i.e. method specialization in the spirit of papers such as "Selective specialization for object-oriented languages" by Dean et al. or "Design and Evaluation of Dynamic Optimizations for a Java Just-In-Time Compiler" by Suganuma et al.
+
+The implementation in this repository is much less sophisticated and more buggy, of course. It provides parameter profiling of baseline compiled application methods on IA32 32-bit via listeners and allows specialization of methods on exactly one non-receiver parameter method.
+
+# Building
+Works the same as a normal Jikes RVM. If you're building with require.rvm-unit-tests=true, please note that I've added specialization tests to OptTestHarnessTest. This has significantly increased the runtime for that test. For example, on prototype-opt on an old IA32 machine, the OptTestHarnessTest alone might take 1 minute.
+
+# License
+The code is provided to you under the Eclipse Public License, the same license that the Jikes RVM uses.
+
+# Support
+As described above, I don't plan to do further development on this so the code is unsupported.
+
+# References
+In addition to the references mentioned above, I found the following references interesting (your mileage may vary):
+* "Runtime value specialization" by Panagiota Bilianou. The literature section covers most of the relevant works. The thesis also contains a chapter about possible integration of specialization with the adaptive optimization system. The thesis is available for free after registration via the electronic thesis online service of the British Library. See http://ethos.bl.uk/OrderDetails.do?uin=uk.bl.ethos.549159 .
+* "Constraint based optimization of stationary fields" by Rogers et al.
+* ("A methodology for procedure cloning" (1993) and "Procedure cloning"(1992) by Cooper et al.
+
+# Original Jikes RVM readme follows
+
 ## Jikes Research Virtual Machine
 
 Jikes RVM (Research Virtual Machine) provides a flexible open testbed to prototype virtual machine technologies and experiment with a large variety of design alternatives. The system is licensed under the [EPL](http://www.eclipse.org/legal/epl-v10.html), an [OSI](http://www.opensource.org/) approved license. Jikes RVM runs on IA32 32 bit (64 bit support is work in progress) and PowerPC (big endian only).

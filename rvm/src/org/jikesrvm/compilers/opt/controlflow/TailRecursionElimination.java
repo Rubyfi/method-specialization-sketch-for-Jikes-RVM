@@ -108,10 +108,26 @@ public final class TailRecursionElimination extends CompilerPhase {
           break;
         case SYSCALL_opcode:
         case CALL_opcode:
-          if (isTailRecursion(instr, ir)) {
+
+          // Methods that are specialized on parameters can currently not be treated
+          // correctly by TRE. There are 3 issues:
+          // (1) Specialization can make arguments
+          // of the tail call constant that are not constant in the general case.
+          // Doing normal TRE in this case leads to incorrect results because there's
+          // no register but a constant operand.
+          // (2) Specialization on types changes the register type of the corresponding
+          // locals. TRE reuses locals and can produce assignments with incompatible
+          // types. For an example, see tailRecursiveFunctionWithTypeParameter in
+          // SpecializationTestClass and consider specialization on B or C.
+          // (3) Splitting of BasicBlocks would need to occur
+          // after the instructions that set the values of the specialized parameters.
+          boolean mayBeRewritten = !ir.belongsToSpecializedMethod();
+
+          if (isTailRecursion(instr, ir) && mayBeRewritten) {
             if (target == null) {
               target = prologue.getBasicBlock().splitNodeWithLinksAt(prologue, ir);
             }
+
             if (DEBUG) dumpIR(ir, "Before transformation of " + instr);
             nextInstr = transform(instr, prologue, target, ir);
             if (DEBUG) dumpIR(ir, "After transformation of " + instr);
@@ -145,6 +161,14 @@ public final class TailRecursionElimination extends CompilerPhase {
     MethodOperand methOp = Call.getMethod(call);
     if (!methOp.hasPreciseTarget()) return false;
     if (methOp.getTarget() != ir.method) return false;
+
+    // Do not transform calls to specialized methods in general method versions.
+    // Those calls are not tail recursive but would be interpreted as such because
+    // TailRecursionElimination does not check the spMethod field of MethodOperand.
+    if (ir.gc.isSpecializedCallInGeneralMethod(call)) {
+      return false;
+    }
+
     RegisterOperand result = Call.getResult(call);
     Instruction s = call.nextInstructionInCodeOrder();
     while (true) {

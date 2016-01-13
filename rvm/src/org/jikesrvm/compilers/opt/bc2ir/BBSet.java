@@ -92,6 +92,19 @@ final class BBSet {
    *                   beginning at bytecode 0.
    */
   BBSet(GenerationContext gc, BytecodeStream bcodes, Operand[] localState) {
+    this(0, gc, bcodes, localState);
+  }
+
+  /**
+   * Initialize the BBSet to handle basic block generation for the argument
+   * generation context and bytecode info.
+   * @param startIndex the start BCI for the entry block
+   * @param gc the generation context to generate blocks for
+   * @param bcodes the bytecodes of said generation context
+   * @param localState the state of the local variables for the block
+   *                   beginning at bytecode 0.
+   */
+  BBSet(int startIndex, GenerationContext gc, BytecodeStream bcodes, Operand[] localState) {
     this.gc = gc;
     this.bcodes = bcodes;
 
@@ -99,7 +112,7 @@ final class BBSet {
     parseExceptionTables();
 
     // Create the entry block, setting root as a sideffect.
-    entry = _createBBLE(0, null, null, false);
+    entry = _createBBLE(startIndex, null, null, false);
     entry.setStackKnown();
     entry.copyIntoLocalState(localState);
   }
@@ -465,6 +478,11 @@ final class BBSet {
    * @param inlinedSomething was a normal method (i.e. non-magic) inlined?
    */
   void finalPass(boolean inlinedSomething) {
+    // TODO probably should not stay in. Perhaps with extreme assertions?
+    if (VM.VerifyAssertions) {
+      verifyTree();
+    }
+
     BBSet.TreeEnumerator e = TreeEnumerator.enumFromRoot(root);
     BasicBlock cop = gc.getPrologue();
     BasicBlockLE curr = getEntry();
@@ -530,6 +548,7 @@ final class BBSet {
           }
         }
       }
+
       // Step 2: Identify the next basic block to add to the code order.
       // curr wants to fallthrough to an inlined method.
       // Inject the entire inlined CFG in the code order.
@@ -641,6 +660,8 @@ final class BBSet {
       gc.getCfg().printDepthFirst();
     }
   }
+
+
 
   //////////////////////////////////////////
   // Gory implementation details of BBSet //
@@ -1135,16 +1156,27 @@ final class BBSet {
   // here for debugging
   private void verifyTree() {
     if (VM.VerifyAssertions) {
-      VM._assert(root.isBlack());
-      verifyTree(root, -1, bcodes.length());
+      VM._assert(root.isBlack(), "Root is not black!");
+      verifyTree(root, entry.low - 1, bcodes.length());
       countBlack(root);
     }
   }
 
   private void verifyTree(BasicBlockLE node, int min, int max) {
     if (VM.VerifyAssertions) {
-      VM._assert(node.low >= min);
-      VM._assert(node.low <= max);
+      boolean lowIsGreaterEqualMin = node.low >= min;
+      if (!lowIsGreaterEqualMin) {
+        String badMinMsg = "Start byte code " + node.low +
+            " is not >= min " + min + " for node " + node;
+        VM._assert(VM.NOT_REACHED, badMinMsg);
+
+      }
+      boolean lowIsLesserEqualMax = node.low <= max;
+      if (!lowIsLesserEqualMax) {
+        String badMaxMsg = "Start byte code " + node.low +
+            " is not <= max " + max + " for node " + node;
+        VM._assert(VM.NOT_REACHED, badMaxMsg);
+      }
       if (node.left != null) {
         VM._assert(node.isBlack() || node.left.isBlack());
         VM._assert(node.left.parent == node);

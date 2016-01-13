@@ -14,9 +14,12 @@ package org.jikesrvm.tools.oth;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Vector;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.classloader.ApplicationClassLoader;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMClassLoader;
@@ -30,6 +33,7 @@ import org.jikesrvm.compilers.opt.OptOptions;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 import org.jikesrvm.compilers.opt.driver.OptimizationPlanner;
 import org.jikesrvm.compilers.opt.driver.OptimizingCompiler;
+import org.jikesrvm.compilers.opt.specialization.SpecializedMethod;
 import org.jikesrvm.runtime.Callbacks;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Reflection;
@@ -103,8 +107,31 @@ class OptTestHarness {
 
   private final OptTestHarnessOutput output;
   private final FileAccess fileAccess;
+  //TODO rename class and field to conform to naming of other fields
+  private final SpecializationLayer specializationLayer;
+
+  private Vector<Object[]> specializedMethodArgsVector;
+
+  /**
+   * Should we recompile all normal methods that have specialized versions after
+   * compiling the specialized versions?
+   */
+  private boolean recompileGeneralMethodVersions;
+
+  /**
+   * Execute specialized methods after compiling them?
+   */
+  private boolean executeSpecializedMethods;
 
   OptTestHarness(OptTestHarnessOutput output, OptOptions optOptions, FileAccess fileAccess) {
+    this.output = output;
+    this.specializationLayer = new StandardSpecializationLayer(output);
+    options = optOptions;
+    this.fileAccess = fileAccess;
+  }
+
+  OptTestHarness(SpecializationLayer specializationLayer, OptTestHarnessOutput output, OptOptions optOptions, FileAccess fileAccess) {
+    this.specializationLayer = specializationLayer;
     this.output = output;
     options = optOptions;
     this.fileAccess = fileAccess;
@@ -130,8 +157,25 @@ class OptTestHarness {
         } else if (argDesc[argNum].isCharType()) {
           methodArgs[argNum] = args[++i].charAt(0);
         } else if (argDesc[argNum].isClassType()) {
-          // TODO
-          output.sysErrPrintln("Parsing args of type " + argDesc[argNum] + " not implemented");
+          // FIXME the following is not correct at all. It merely works for
+          // those cases that I'm currently testing.
+
+          String className = args[++i];
+          className = className.trim();
+          if (className.equals("null")) {
+            methodArgs[argNum] = null;
+          } else {
+            try {
+              // TODO works only for application types (i.e. types
+              // that are Jikes RVM specific or in the bootimage are not supported)
+              Class<?> klazz = Class.forName(className, true, ApplicationClassLoader.getSystemClassLoader());
+              methodArgs[argNum] = klazz.newInstance();
+            } catch (Exception e) {
+              i--; // revert ++i from attempting to parse class name
+              output.sysErrPrintln("Parsing args of type " + argDesc[argNum] + " not implemented");
+            }
+
+          }
         } else if (argDesc[argNum].isArrayType()) {
           TypeReference element = argDesc[argNum].getArrayElementType();
           if (element.equals(TypeReference.JavaLangString)) {
@@ -216,6 +260,13 @@ class OptTestHarness {
     }
   }
 
+  private void processMethodForSpecialization(RVMMethod method, OptOptions options, Map<Integer, String> paramsAndValues) {
+    if (VM.BuildForOptCompiler) {
+      specializationLayer.addMethodForSpecialization(method, options, paramsAndValues);
+    }
+    // baseline compiler does not support specialization, so just ignore this case
+  }
+
   // Wrapper applying default decision regarding opt/baseline
   private void processMethod(RVMMethod method, OptOptions opts) {
     processMethod(method, opts, useBaselineCompiler);
@@ -260,6 +311,10 @@ class OptTestHarness {
           RVMClass klass = loadClass(args[++i]);
           processClass(klass, options);
           duplicateOptions();
+        } else if ("-specClass".equals(arg)) {
+          RVMClass klazz = loadClass(args[++i]);
+          output.sysOutPrintln("Specializing in class " + args[i]);
+          specializationLayer.setSpecializationClass(klazz);
         } else if ("-method".equals(arg) || "-methodOpt".equals(arg) || "-methodBase".equals(arg)) {
           // Default for this method is determined by BASELINE var
           boolean isBaseline = useBaselineCompiler;
@@ -286,6 +341,14 @@ class OptTestHarness {
           } else {
             processMethod(method, options, isBaseline);
           }
+          duplicateOptions();
+        } else if ("-spec".equals(arg)) {
+          RVMClass klass = specializationLayer.getSpecializationClass();
+          String name = args[++i];
+          String desc = args[++i];
+
+          RVMMethod method = findDeclaredOrFirstMethod(klass, name, desc);
+          i = markMethodForSpecialization(args, i, name, method);
           duplicateOptions();
         } else if ("-performance".equals(arg)) {
           perf = new Performance(output);
@@ -327,6 +390,31 @@ class OptTestHarness {
           reflectMethodVector.add(method);
           reflectMethodArgsVector.add(reflectMethodArgs);
           duplicateOptions();
+        } else if ("-specAndRun".equals(arg)) {
+          executeWithReflection = true;
+          String name = args[++i];
+          String desc = args[++i];
+
+          executeSpecializedMethods = true;
+
+          RVMMethod method = findDeclaredOrFirstMethod(specializationLayer.getSpecializationClass(), name, desc);
+
+          i = markMethodForSpecialization(args, i, name, method);
+
+          TypeReference[] argDesc = method.getDescriptor().parseForParameterTypes(method.getDeclaringClass().getClassLoader());
+          Object[] reflectMethodArgs = new Object[argDesc.length];
+          i = parseMethodArgs(argDesc, args, i, reflectMethodArgs);
+          specializedMethodArgsVector.addElement(reflectMethodArgs);
+          duplicateOptions();
+        } else if ("-specRecompileGeneralMethods".equals(arg)) {
+          int specializedMethodsCount = specializationLayer.getNumberOfMethodsMarkedForSpecialization();
+          if (specializedMethodsCount == 0) {
+            output.sysErrPrintln("Requested recompilation of general methods. " +
+                "This option is intended for method specialization but no " +
+                "specialized methods have been created yet!");
+          } else {
+            recompileGeneralMethodVersions = true;
+          }
         } else if ("-main".equals(arg)) {
           executeMainMethod = true;
           i++;
@@ -365,6 +453,29 @@ class OptTestHarness {
     Address addr = Magic.objectAsAddress(cm.getEntryCodeArray());
     return "Method: " + method + " compiled code: " + addrToString(addr);
   }
+
+  protected void specializeAllMethods() {
+    specializationLayer.specializeAllMethods();
+  }
+
+  protected int markMethodForSpecialization(String[] args, int i, String name, RVMMethod method) {
+    int numParameters = method.getParameterTypes().length;
+
+    Map<Integer, String> paramsAndValues = new HashMap<Integer, String>(numParameters);
+    String parameterNumber = args[++i];
+    Integer parameterToSpecializeOn = Integer.valueOf(Integer.parseInt(parameterNumber));
+
+    String valueForSpecialization = args[++i];
+    paramsAndValues.put(parameterToSpecializeOn, valueForSpecialization);
+
+    if (method == null || method.isAbstract() || method.isNative()) {
+      output.sysErrPrintln("WARNING: Skipping method " + args[i - 2] + "." + name);
+    } else {
+      processMethodForSpecialization(method, options, paramsAndValues);
+    }
+    return i;
+  }
+
 
   private void compileMethodsInVector() {
     // Compile all baseline methods first
@@ -408,6 +519,12 @@ class OptTestHarness {
         }
       }
     }
+
+    specializeAllMethods();
+
+    if (recompileGeneralMethodVersions) {
+      specializationLayer.recompileGeneralMethodVersions(options);
+    }
   }
 
   private void executeCommand() throws InvocationTargetException, IllegalAccessException {
@@ -439,6 +556,36 @@ class OptTestHarness {
         output.sysOutPrintln(endOfExecutionString(method));
         output.sysOutPrintln(resultString(result));
       }
+
+
+      if (executeSpecializedMethods) {
+        Vector<SpecializedMethod> methods = specializationLayer.getSpecializedMethodsForInvocation();
+        for (int i = 0; i < methods.size(); i++) {
+          reflectMethodArgs = specializedMethodArgsVector.elementAt(i);
+          SpecializedMethod spMethod = methods.elementAt(i);
+          CompiledMethod methodToInvoke = spMethod.getCompiledMethod();
+          output.sysOutPrintln(startOfExecutionString(spMethod));
+          Object result = null;
+          if (perf != null) perf.reset();
+          Object receiver = null;
+
+          if (!spMethod.getMethod().isStatic()) {
+            receiver = attemptToInvokeDefaultConstructor(spMethod.getMethod());
+            if (receiver == null) {
+              output.sysErrPrintln("Default constructor could not be called for class of method " + spMethod + ", skipping it!");
+              continue;
+            }
+          }
+
+          result = Reflection.invokeCompiledMethodUnchecked(methodToInvoke, receiver, reflectMethodArgs);
+
+          if (perf != null) perf.stop();
+          output.sysOutPrintln(endOfExecutionString(spMethod));
+          output.sysOutPrintln(resultString(result));
+        }
+      }
+
+
       executeWithReflection = false;
     }
 
@@ -478,12 +625,23 @@ class OptTestHarness {
     return "**** START OF EXECUTION of " + method + " ****.";
   }
 
+  static String endOfExecutionString(SpecializedMethod method) {
+    return "**** END OF EXECUTION of " + method + " ****.";
+  }
+
+  static String startOfExecutionString(SpecializedMethod method) {
+    return "**** START OF EXECUTION of " + method + " ****.";
+  }
+
   public static void main(String[] args) throws InvocationTargetException, IllegalAccessException {
     OptTestHarness oth = new OptTestHarness(new DefaultOutput(), new OptOptions(), new DefaultFileAccess());
     oth.mainMethod(args);
   }
 
   public void mainMethod(String[] args) throws InvocationTargetException, IllegalAccessException {
+    if (specializationLayer != null) {
+      specializationLayer.injectOTH(this);
+    }
     cl = RVMClassLoader.getApplicationClassLoader();
     optMethodVector = new Vector<RVMMethod>(50);
     optOptionsVector = new Vector<OptOptions>(50);
@@ -491,6 +649,7 @@ class OptTestHarness {
     reflectoidVector = new Vector<Method>(10);
     reflectMethodVector = new Vector<RVMMethod>(10);
     reflectMethodArgsVector = new Vector<Object[]>(10);
+    specializedMethodArgsVector = new Vector<Object[]>(10);
     if (VM.BuildForOptCompiler && !OptimizingCompiler.isInitialized()) {
       OptimizingCompiler.init(options);
     } else if (!VM.BuildForOptCompiler) {

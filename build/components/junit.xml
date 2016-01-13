@@ -39,11 +39,14 @@
          src="http://sourceforge.net/projects/junit/files/junit/${junit.version}/${junit.web-archive}/download?use_mirror=autoselect"
          dest="${junit.package.dir}/${junit.web-archive}"/>
     <unzip src="${junit.package.dir}/${junit.web-archive}" dest="${junit.package.dir}"/>
+  	<copy file="${junit.package.dir}/junit${junit.version}/junit-${junit.version}.jar" tofile="${junit.dir}/junit.jar"/>
+  	<copy file="${junit.package.dir}/junit${junit.version}/junit-${junit.version}-src.jar" tofile="${junit.dir}/junit-src.jar"/>
     <writeComponentConstants dir="${junit.dir}"/>
   </target>
 
   <target name="build" depends="fetch">
-    <setComponentsConfig key="junit.jar" value="${junit.dir}/junit-${junit.version}.jar"/>
+    <setComponentsConfig key="junit.jar" value="${junit.dir}/junit.jar"/>
+    <setComponentsConfig key="junit-src.jar" value="${junit.dir}/junit-src.jar"/>
   </target>
 
   <target name="ensure" depends="prepare-ant-tasks">

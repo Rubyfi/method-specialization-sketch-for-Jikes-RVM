@@ -17,6 +17,12 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 
 /**
  * This is the top-level class to support specialized versions of Java methods
+ * that are transparent to the rest of the runtime.
+ * <p>
+ * In contrast to {@link org.jikesrvm.classloader.SpecializedMethod} and their
+ * associated classes, the kind of method specialization implemented by this class
+ * can support more general types of specialization. This is accomplished by
+ * representing kinds of specialization using {@link SpecializationContext}.
  */
 public final class SpecializedMethod {
   /**

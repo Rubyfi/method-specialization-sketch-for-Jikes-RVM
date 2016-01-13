@@ -40,11 +40,13 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.util.Services;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -659,6 +661,7 @@ public class RuntimeEntrypoints {
   @NoInline
   @Entrypoint
   @Unpreemptible("Deliver exception possibly from unpreemptible code")
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void athrow(Throwable exceptionObject) {
     if (traceAthrow) {
       VM.sysWriteln("in athrow.");
@@ -697,6 +700,7 @@ public class RuntimeEntrypoints {
    */
   @Entrypoint
   @UnpreemptibleNoWarn
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   static void deliverHardwareException(int trapCode, Word trapInfo) {
     if (false) VM.sysWriteln("delivering hardware exception");
     RVMThread myThread = RVMThread.getCurrentThread();
@@ -825,6 +829,7 @@ public class RuntimeEntrypoints {
    */
   @NoInline
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   static void unlockAndThrow(Object objToUnlock, Throwable objToThrow) {
     ObjectModel.genericUnlock(objToUnlock);
     athrow(objToThrow);

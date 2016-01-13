@@ -47,6 +47,12 @@ public final class AosEntrypoints {
       getField(org.jikesrvm.compilers.opt.specialization.SpecializedMethodPool.class,
                "specializedMethods",
                org.jikesrvm.compilers.common.CodeArray[].class);
+  public static final RVMField paramListenerSamplesLeftToTakeField =
+      getField(org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.ParameterListener.class, "samplesLeftToTake", int.class);
+  public static final RVMField paramListenerParamField =
+      getField(org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.ParameterListener.class, "nextParamIndex", int.class);
+  public static final RVMField activeUpdateCallsField =
+      getField(org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.ParameterListener.class, "activeUpdateCalls", int.class);
 
   private AosEntrypoints() {
     // prevent instantiation

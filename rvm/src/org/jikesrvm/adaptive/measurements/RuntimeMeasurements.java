@@ -178,6 +178,11 @@ public abstract class RuntimeMeasurements {
   private static ContextListener[] cbsContextListeners = new ContextListener[0];
 
   /**
+   * context listeners that trigger on CBS param yieldpoints
+   */
+  private static ContextListener[] cbsParamListeners = new ContextListener[0];
+
+  /**
    * Install a method listener on CBS ticks
    * @param s method listener to be installed
    */
@@ -203,6 +208,20 @@ public abstract class RuntimeMeasurements {
     }
     tmp[numListeners] = s;
     cbsContextListeners = tmp;
+  }
+
+  /**
+   * Installs a context listener on CBS param ticks
+   * @param s context listener to be installed
+   */
+  public static synchronized void installCBSContextListenerOnParamTicks(ContextListener s) {
+    int numListeners = cbsParamListeners.length;
+    ContextListener[] tmp = new ContextListener[numListeners + 1];
+    for (int i = 0; i < numListeners; i++) {
+      tmp[i] = cbsParamListeners[i];
+    }
+    tmp[numListeners] = s;
+    cbsParamListeners = tmp;
   }
 
   /**
@@ -237,6 +256,38 @@ public abstract class RuntimeMeasurements {
     for (MethodListener methodListener : cbsMethodListeners) {
       if (methodListener.isActive()) {
         methodListener.update(ypTakenInCMID, ypTakenInCallerCMID, whereFrom);
+      }
+    }
+  }
+
+  /**
+   * Called from Thread.yieldpoint when it is time to take a CBS param sample.
+   */
+  @Uninterruptible
+  public static void takeCBSParamSample(int whereFrom, Address yieldpointServiceMethodFP) {
+    Address ypTakenInFP = Magic.getCallerFramePointer(yieldpointServiceMethodFP); // method that took yieldpoint
+
+    // Get the cmid for the method in which the yieldpoint was taken.
+    int ypTakenInCMID = Magic.getCompiledMethodID(ypTakenInFP);
+
+    // Get the cmid for that method's caller.
+    Address ypTakenInCallerFP = Magic.getCallerFramePointer(ypTakenInFP);
+    int ypTakenInCallerCMID = Magic.getCompiledMethodID(ypTakenInCallerFP);
+
+    // Determine if ypTakenInCallerCMID corresponds to a real Java stackframe.
+    // If one of the following conditions is detected, set ypTakenInCallerCMID to -1
+    //    Caller is out-of-line assembly (no RVMMethod object) or top-of-stack psuedo-frame
+    //    Caller is a native method
+    CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
+    if (ypTakenInCallerCMID == StackFrameLayout.getInvisibleMethodID() ||
+        ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
+      // drop sample
+    } else {
+      // Notify all registered listeners
+      for (ContextListener paramListener : cbsParamListeners) {
+        if (paramListener.isActive()) {
+          paramListener.update(ypTakenInFP, whereFrom);
+        }
       }
     }
   }
@@ -372,6 +423,7 @@ public abstract class RuntimeMeasurements {
 
     cbsMethodListeners = new MethodListener[0];
     cbsContextListeners = new ContextListener[0];
+    cbsParamListeners = new ContextListener[0];
   }
 
   /**

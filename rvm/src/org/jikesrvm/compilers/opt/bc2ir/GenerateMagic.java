@@ -76,6 +76,8 @@ import org.jikesrvm.VM;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.MemberReference;
 import org.jikesrvm.classloader.MethodReference;
+import org.jikesrvm.classloader.NormalMethod;
+import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.opt.MagicNotImplementedException;
@@ -808,13 +810,69 @@ public class GenerateMagic {
     } else if (methodName == MagicNames.getInlineDepth) {
       bc2ir.push(new IntConstantOperand(gc.getInlineSequence().getInlineDepth()));
     } else if (methodName == MagicNames.isConstantParameter) {
-      Operand requestedOperand = bc2ir.pop();
-      if (!(requestedOperand instanceof IntConstantOperand)) {
-        throw new OptimizingCompilerException("Must supply constant to Magic.isConstantParameter");
-      }
-      int requested = ((IntConstantOperand)(requestedOperand)).value;
+      int requested = getRequestedValue(bc2ir, MagicNames.isConstantParameter);
       boolean isConstant = gc.getArguments()[requested].isConstant();
-      bc2ir.push(new IntConstantOperand(isConstant ? 1 : 0));
+      pushBooleanValue(bc2ir, isConstant);
+    } else if (methodName == MagicNames.isSpecializedTypeParameter) {
+      int requested = getRequestedValue(bc2ir, MagicNames.isSpecializedTypeParameter);
+      TypeReference trFromGenerationContext = gc.getArguments()[requested].getType();
+
+      NormalMethod methodBeingCompiled = gc.getMethod();
+      if (!methodBeingCompiled.isStatic()) {
+        requested--;
+      }
+      TypeReference trFromParameter = gc.getMethod().getParameterTypes()[requested];
+
+      compareTypesAndPushResult(bc2ir, trFromGenerationContext, trFromParameter);
+    } else if (methodName == MagicNames.isConstantLocal) {
+      int requested = getRequestedValue(bc2ir, MagicNames.isConstantLocal);
+      Operand local = bc2ir.getLocal(requested);
+      // Ensure that assertions for dummy values are executed
+      if (local.isLong() || local.isDouble()) {
+        local = bc2ir.getLocalDual(requested);
+      }
+      boolean isConstant = local.isConstant();
+      pushBooleanValue(bc2ir, isConstant);
+    } else if (methodName == MagicNames.isLocalWithSpecializedType) {
+      int requested = getRequestedValue(bc2ir, MagicNames.isLocalWithSpecializedType);
+
+      int paramIndex = 0;
+      int localIndex = 0;
+
+      int offset = gc.getMethod().isStatic() ? 0 : -1;
+      TypeReference[] parameterTypes = gc.getMethod().getParameterTypes();
+      TypeReference trFromParameter = null;
+
+      if (gc.getMethod().isStatic()) {
+        trFromParameter = parameterTypes[paramIndex];
+      } else {
+        trFromParameter = gc.getMethod().getDeclaringClass().getTypeRef();
+      }
+
+      while (localIndex < requested) {
+        if (trFromParameter.isLongType() || trFromParameter.isDoubleType()) {
+          localIndex += 2;
+        } else {
+          localIndex++;
+        }
+        paramIndex++;
+        trFromParameter = parameterTypes[paramIndex + offset];
+      }
+
+      if (localIndex == requested) {
+        boolean twoWordWide = trFromParameter.isDoubleType() || trFromParameter.isLongType();
+        Operand local = null;
+        if (twoWordWide) {
+          local = bc2ir.getLocalDual(localIndex);
+        } else {
+          local = bc2ir.getLocal(localIndex);
+        }
+        TypeReference trFromLocal = local.getType();
+        compareTypesAndPushResult(bc2ir, trFromLocal, trFromParameter);
+      } else {
+        OptimizingCompilerException.UNREACHABLE("Did not find matching parameter for local!");
+      }
+
     } else {
       // Wasn't machine-independent, so try the machine-dependent magics next.
       if (VM.BuildForIA32) {
@@ -826,6 +884,42 @@ public class GenerateMagic {
     }
     return true;
   } // generateMagic
+
+  private static int getRequestedValue(BC2IR bc2ir, Atom magicName) {
+    Operand requestedOperand = bc2ir.pop();
+    if (!(requestedOperand instanceof IntConstantOperand)) {
+      throw new OptimizingCompilerException("Must supply constant to Magic." + magicName);
+    }
+    int requested = ((IntConstantOperand)(requestedOperand)).value;
+    return requested;
+  }
+
+  private static void compareTypesAndPushResult(BC2IR bc2ir, TypeReference trInCompiledCode, TypeReference trFromSignature)
+      throws NoClassDefFoundError {
+    boolean isMorePreciseType = false;
+    boolean primitive = !trInCompiledCode.isReferenceType();
+    if (trFromSignature.definitelySame(trInCompiledCode)) {
+      isMorePreciseType = false;
+    } else if (!primitive) {
+      // these should be no ops
+      trFromSignature.resolve();
+      trInCompiledCode.resolve();
+
+      RVMClass typeFromSignature = trFromSignature.peekType().asClass();
+      RVMClass typeFromThisMethod = trInCompiledCode.peekType().asClass();
+      isMorePreciseType = typeFromSignature.isAssignableFrom(typeFromThisMethod);
+    } else {
+      // null is more specific than any type
+      isMorePreciseType = (trInCompiledCode == TypeReference.NULL_TYPE);
+    }
+
+    pushBooleanValue(bc2ir, isMorePreciseType);
+  }
+
+  private static void pushBooleanValue(BC2IR bc2ir, boolean booleanValue) {
+    bc2ir.push(new IntConstantOperand(booleanValue ? 1 : 0));
+  }
+
 
   // Generate magic where the untype operational semantics is identified by name.
   // The operands' types are determined from the method signature.

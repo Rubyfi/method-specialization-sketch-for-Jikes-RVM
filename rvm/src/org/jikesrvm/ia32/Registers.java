@@ -24,6 +24,8 @@ import org.jikesrvm.architecture.AbstractRegisters;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -92,6 +94,7 @@ public final class Registers extends AbstractRegisters {
    * sigwait to set fp &amp; ip so that GC will scan the threads stack
    * starting at the frame of the method that called sigwait.
    */
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public void setInnermost() {
     Address current_fp = Magic.getFramePointer();
     ip = Magic.getReturnAddress(current_fp);
@@ -108,6 +111,7 @@ public final class Registers extends AbstractRegisters {
    */
   @Override
   @Uninterruptible
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public void initializeStack(Address ip, Address sp) {
     Address fp;
     sp = sp.minus(STACKFRAME_HEADER_SIZE);                   // last word of header

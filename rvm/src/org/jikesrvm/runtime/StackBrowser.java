@@ -18,7 +18,10 @@ import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
+import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -26,6 +29,7 @@ import org.vmmagic.unboxed.Offset;
  *  Use this class to explore the stack.  It is sometimes necessary to
  *  find out the current context class loader, and other things like that.
  */
+@MakesAssumptionsAboutCallStack(How.Direct)
 public final class StackBrowser {
 
   /** Method associated with current stack location */
@@ -84,12 +88,25 @@ public final class StackBrowser {
       cmid = Magic.getCompiledMethodID(newFP);
     }
 
+    CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
     if (set) {
-      CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
       currentFramePointer = newFP;
       currentInstructionPointer = cm.getInstructionOffset(newIP);
       cm.set(this, currentInstructionPointer);
     }
+
+    // Deal with specialized methods, which are not enabled till the VM runs.
+    // Check mainThread instead of fullyBooted to ensure that all compilers have
+    // been initialized.
+    if (VM.BuildForOptCompiler && VM.mainThread != null) {
+      if (cm.getCompilerType() == CompiledMethod.OPT) {
+        OptCompiledMethod optMethod = (OptCompiledMethod) cm;
+        if (optMethod.belongsToParamSpecializedMethod()) {
+          return upOneFrameInternal(set);
+        }
+      }
+    }
+
     return true;
   }
 

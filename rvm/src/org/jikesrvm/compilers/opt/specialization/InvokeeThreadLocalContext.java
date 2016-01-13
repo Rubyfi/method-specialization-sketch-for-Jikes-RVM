@@ -25,10 +25,7 @@ import org.jikesrvm.compilers.opt.driver.OptimizingCompiler;
  * "the invokee is thread local".
  * We use this context to remove unnecessary synchronizations.
  */
-public final class InvokeeThreadLocalContext implements SpecializationContext {
-
-  public InvokeeThreadLocalContext() {
-  }
+public final class InvokeeThreadLocalContext extends SpecializationContext {
 
   @Override
   public SpecializedMethod findOrCreateSpecializedVersion(NormalMethod source) {
@@ -52,13 +49,10 @@ public final class InvokeeThreadLocalContext implements SpecializationContext {
     return spMethod;
   }
 
-  private SpecializedMethod createSpecializedMethod(NormalMethod method) {
-    return (new SpecializedMethod(method, this));
-  }
-
   /**
-   * Generate code to specialize a method in this context. Namely, invoke
-   * the opt compiler with the INVOKEE_THREAD_LOCAL option.
+   * {@inheritDoc}<p>
+   *
+   * Namely, invoke the opt compiler with the INVOKEE_THREAD_LOCAL option.
    * @param source the method to compile
    */
   @Override

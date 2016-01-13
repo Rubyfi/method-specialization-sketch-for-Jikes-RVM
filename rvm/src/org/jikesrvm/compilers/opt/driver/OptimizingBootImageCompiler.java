@@ -112,6 +112,7 @@ public final class OptimizingBootImageCompiler extends BootImageCompiler {
         OptimizationPlanElement[] optimizationPlan = optimizationPlans.get(freeOptimizationPlan);
         CompilationPlan cp =
           new CompilationPlan(method, params, optimizationPlan, null, options.get(freeOptimizationPlan));
+        Callbacks.notifyMethodOptCompile(method, cp);
         cm = OptimizingCompiler.compile(cp);
         if (VM.BuildForAdaptiveSystem) {
           /* We can't accurately measure compilation time on Host JVM, so just approximate with DNA */

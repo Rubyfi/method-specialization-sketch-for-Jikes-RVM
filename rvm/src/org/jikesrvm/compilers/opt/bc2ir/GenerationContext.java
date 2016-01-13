@@ -40,8 +40,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.AbstractParameterInfo;
+import org.jikesrvm.adaptive.parameterprofiling.TypeValueForObjectParameter;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
@@ -241,6 +244,21 @@ public final class GenerationContext {
    */
   private Map<Instruction, Instruction> instToOSRBarriers;
 
+  /**
+   * Is this method a specialized version that has more information about parameters?
+   * This is the case for specialized scan methods or some methods created via a
+   * SpecializationContext.
+   */
+  private boolean hasAdditionalInformationAboutParameters;
+
+  /**
+   * Contains the instructions that represent specialized calls that were inserted
+   * by BC2IR in general method versions.
+   */
+  private final Set<Instruction> specCallInstructions = new HashSet<Instruction>();
+
+  public final AbstractParameterInfo[] parameterValues;
+
   //////////
   // Main public methods
   /////////
@@ -251,11 +269,16 @@ public final class GenerationContext {
    *
    * @param meth The NormalMethod whose IR will be generated
    * @param params The known types of the parameters to the method. For method specialization.
+   * @param paramValues The know values of the parameter to the method. For method specialization.
+   *    The value array or some values in the array may be <code>null</code>. In that case,
+   *    the affected parameters are treated as normal, unspecialized parameters.
    * @param cm   The compiled method id to be used for this compilation
    * @param opts The Options to be used for the generation
    * @param ip   The InlineOracle to be used for the generation
    */
-  GenerationContext(NormalMethod meth, TypeReference[] params, CompiledMethod cm, OptOptions opts, InlineOracle ip) {
+  GenerationContext(NormalMethod meth, TypeReference[] params, AbstractParameterInfo[] paramValues, CompiledMethod cm, OptOptions opts, InlineOracle ip) {
+    parameterValues = paramValues;
+
     original_cm = cm;
     method = meth;
     if (opts.frequencyCounters() || opts.inverseFrequencyCounters()) {
@@ -284,7 +307,12 @@ public final class GenerationContext {
     _ncGuards = new HashMap<Register, RegisterOperand>();
     initLocalPool();
     TypeReference[] definedParams = meth.getParameterTypes();
-    if (params == null) params = definedParams;
+    if (params == null) {
+      params = definedParams;
+    } else {
+      // specialized params will be used
+      hasAdditionalInformationAboutParameters = true;
+    }
     int numParams = params.length;
     int argIdx = 0;
     int localNum = 0;
@@ -312,6 +340,15 @@ public final class GenerationContext {
     }
     for (int paramIdx = 0; paramIdx < numParams; paramIdx++) {
       TypeReference argType = params[paramIdx];
+      AbstractParameterInfo paramInfo = null;
+      if (paramValues != null) {
+        paramInfo = paramValues[paramIdx];
+        hasAdditionalInformationAboutParameters = true;
+      }
+
+      if (paramInfo != null && paramInfo.hasTypeInformation()) {
+        argType = ((TypeValueForObjectParameter) paramInfo).getObjectType().getTypeRef();
+      }
       RegisterOperand argOp = makeLocal(localNum, argType);
       argOp.setDeclaredType();
       if (argType.isClassType()) {
@@ -725,7 +762,9 @@ public final class GenerationContext {
   /**
    * for internal use only (in createInlinedContext)
    */
-  private GenerationContext() {}
+  private GenerationContext() {
+    parameterValues = null;
+  }
 
   /**
    * Fills in the rest of the method prologue.
@@ -1063,6 +1102,42 @@ public final class GenerationContext {
       outermostContext = outermostContext.parent;
     }
     return outermostContext;
+  }
+
+
+  /* Methods relating to method specialization */
+
+  /**
+   * Does this {@link GenerationContext} belong to the most general version of a method?
+   * <p>
+   * This does NOT have anything to do with OSR; it only refers to method specialization
+   * (either specialized scan methods or specialization via the specialization package).
+   *
+   * @return <code>true</code> if this method is not specialized
+   */
+  public boolean isGeneralMethodVersion() {
+    boolean isThreadLocal = options.ESCAPE_INVOKEE_THREAD_LOCAL;
+    return !isThreadLocal && !hasAdditionalInformationAboutParameters;
+  }
+
+  /**
+   * Is the given instruction a call to a specialized method that needs to be treated
+   * specially by later compiler phases (e.g. {@link ConvertToLowLevelIR})?
+   * @param callInstruction a call instruction
+   * @return <code>true</code> if and only if the call needs to be treated specially
+   *  by later compiler phases
+   */
+  public boolean isSpecializedCallInGeneralMethod(Instruction callInstruction) {
+    return specCallInstructions.contains(callInstruction);
+  }
+
+  /**
+   * Mark the instruction as a call to a specialized method that needs to be
+   * treated specially by later phases.
+   * @param specializedCall the call instruction
+   */
+  public void markAsSpecializedCallInGeneralMethod(Instruction specializedCall) {
+    specCallInstructions.add(specializedCall);
   }
 
 }

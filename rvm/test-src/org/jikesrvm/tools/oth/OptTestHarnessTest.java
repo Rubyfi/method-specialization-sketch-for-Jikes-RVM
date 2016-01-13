@@ -19,18 +19,23 @@ import static org.jikesrvm.tests.util.TestingTools.assumeThatVMIsNotBuildForOptC
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeThat;
 
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jikesrvm.VM;
 import org.jikesrvm.classloader.ApplicationClassLoader;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.opt.OptOptions;
+import org.jikesrvm.compilers.opt.specialization.SpecializationDatabase;
+import org.jikesrvm.compilers.opt.specialization.SpecializedMethod;
 import org.jikesrvm.junit.runners.RequiresJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.jikesrvm.tests.util.TestingTools;
@@ -58,10 +63,12 @@ public class OptTestHarnessTest {
   private static final String CLASS_WITH_MAIN_METHOD = "org.jikesrvm.tools.oth.ClassWithMainMethod";
   private static final String CLASS_WITH_INSTANCE_METHOD = "org.jikesrvm.tools.oth.ClassWithInstanceMethod";
   private static final String CLASS_WITH_PRIVATE_CONSTRUCTOR = "org.jikesrvm.tools.oth.ClassWithPrivateConstructor";
-
+  private static final String SPECIALIZATION_TEST_CLASS = "SpecializationTestClass";
 
   private TestOutput output;
   private TestFileAccess fileAccess;
+
+  private TestSpecializationLayer specialization;
 
   private void redirectStandardStreams() {
     System.setOut(output.getSystemOut());
@@ -819,5 +826,1193 @@ public class OptTestHarnessTest {
       RVMClass.setClassLoadingDisabled(false);
     }
   }
+
+  // Method specialization tests
+
+  @Test
+  public void specClassLoadsClass() throws Exception {
+    assertClassIsNotLoaded(SPECIALIZATION_TEST_CLASS);
+    String[] specClass = { "-specClass", SPECIALIZATION_TEST_CLASS };
+    executeOptTestHarness(specClass);
+    assertClassIsLoaded(SPECIALIZATION_TEST_CLASS);
+  }
+
+  @Test
+  public void specTellsSpecLayerToSpecializeAMethod() throws InvocationTargetException, IllegalAccessException {
+    assumeThatVMIsBuildForOptCompiler();
+
+    output = new TestOutput();
+    TestSpecializationLayer testLayer = new TestSpecializationLayer(output);
+    OptTestHarness oth = new OptTestHarness(testLayer, output, new OptOptions(), new DefaultFileAccess());
+
+    String firstParameter = "0";
+    String specializationValueOne = "1";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-spec", "intIsConstant", "-",
+        firstParameter, specializationValueOne };
+    oth.mainMethod(specializationArgs);
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThat(testLayer.getNumberOfMethodsMarkedForSpecialization(), is(1));
+    assertThat(testLayer.getNumberOfSpecializedMethods(), is(1));
+    int version = 0;
+    assertThat(testLayer.getValueForSpecializationOfMethod("intIsConstant", Integer.parseInt(firstParameter), version), is(specializationValueOne));
+  }
+
+  private void assumeThatVMIsBuildForOptCompiler() {
+    assumeThat(VM.BuildForOptCompiler, is(true));
+  }
+
+  @Test
+  public void specializeOnAnInteger() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String firstParameter = "0";
+    String specializationValueOne = "1";
+    String ignored = "5";
+
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "intIsConstant", "-",
+        firstParameter, specializationValueOne, ignored };
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "intIsConstant", int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    String methodOutput = buildConstantAndOneOutput(true, true);
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  private String buildConstantAndOneOutput(boolean constant,
+      boolean one) {
+    String methodOutput = "Parameter is constant: " + constant + "\n" +
+      "Parameter is one : " + one + "\n" + "Parameter is constant and one: " +
+      (constant && one) + "\n";
+    return methodOutput;
+  }
+
+  private void removeSpecializationMsg() {
+    String specializationMsg = "Specializing in class SpecializationTestClass\n";
+    removeMessageFromStandardOutput(specializationMsg);
+  }
+
+  private void executeOTHWithStreamRedirectionAndSpecialization(
+      String[] specializationArgs) throws Exception {
+    try {
+      output = new TestOutput();
+      fileAccess = new TestFileAccess();
+      specialization = new TestSpecializationLayer(output);
+      redirectStandardStreams();
+      OptTestHarness oth = new OptTestHarness(specialization, output, new OptOptions(), fileAccess);
+      specialization.injectOTH(oth);
+      oth.mainMethod(specializationArgs);
+    } finally {
+      resetStandardStreams();
+    }
+  }
+
+  private String buildStringForParameterIsConstant(int parameterNumber, boolean constant, String paramValue) {
+      return "Parameter " + parameterNumber + " is constant: " + constant + "\n" +
+          "Parameter " + parameterNumber + " is : " + paramValue + "\n";
+  }
+
+  @Test
+  public void specializeOnAnIntegerWithMultipleParameters() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "0";
+    String anInt = "12";
+    String anotherInt = "-34";
+    String specializationValue = "1000";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "intIsConstantMultipleParameters",
+        "-", "1", specializationValue, anInt, ignored, anotherInt };
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "intIsConstantMultipleParameters", int.class,
+        int.class, int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    String methodOutput = expected.toString();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnAnIntegerWhenAnotherParameterIsALong() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "0";
+    String anInt = "12";
+    String anotherInt = "-34";
+    String specializationValue = "1000";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "intIsConstantMultipleParameters",
+        "-", "0", specializationValue, ignored, anInt, anotherInt };
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "intIsConstantMultipleParameters", int.class,
+        int.class, int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(1, false, anInt));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    String methodOutput = expected.toString();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnAnIntegerInstanceMethod() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "0";
+    String specializationValue = "1";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "intIsConstantInstanceMethod",
+        "-", "0", specializationValue, ignored};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "intIsConstantInstanceMethod", int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder methodOutput = new StringBuilder();
+    methodOutput.append(buildParameterOneImplicitIsZeroIsConstantOutput(true));
+    methodOutput.append(buildOneAndConstantAndOneOutput(true, true));
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnADoubleWithMultipleParameters() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "1.5d";
+    String specializationValue = "1.234567891011E-10";
+    String anInt = "-2";
+    String anotherInt = "35";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "doubleIsConstantMultipleParameters",
+        "-", "1", specializationValue, anInt, ignored, anotherInt};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "doubleIsConstantMultipleParameters",
+        int.class, double.class, int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void longIsConstant() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "2021223242526272829";
+    String specializationValue = "1234567891011121314";
+    String anInt = "-2";
+    String anotherInt = "35";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "longIsConstant",
+        "-", "1", specializationValue, anInt, ignored, anotherInt};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "longIsConstant",
+        int.class, long.class, int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnALongWhereParameterIsWritten() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "2021223242526272829";
+    String specializationValue = "1234567891011121314";
+    String anInt = "-2";
+    String anotherInt = "35";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun",
+        "longIsConstantWithParameterWriting", "-", "1", specializationValue,
+        anInt, ignored, anotherInt};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "longIsConstantWithParameterWriting",
+        int.class, long.class, int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    long longValue = Long.parseLong(specializationValue);
+    int numberAddedInMethodBody = 1;
+    longValue += numberAddedInMethodBody;
+    String expectedLongValue = Long.toString(longValue);
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, expectedLongValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnAType() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "null";
+    String specializationValue = "B";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "typeParamIsOfSpecificType",
+        "-", "0", specializationValue, ignored};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    Class<?> a = Class.forName("A");
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "typeParamIsOfSpecificType",
+        a);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    expected.append("Parameter 0 is of a specialized type: ");
+    expected.append(true);
+    expected.append(lineEnd);
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void specializeOnATypeInstanceMethod() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "null";
+    String specializationValue = "B";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "typeParamIsOfSpecificTypeInstanceMethod",
+        "-", "0", specializationValue, ignored};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    Class<?> a = Class.forName("A");
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "typeParamIsOfSpecificTypeInstanceMethod",
+        a);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    expected.append("Parameter 1 (implicit this is 0) is of a specialized type: ");
+    expected.append(true);
+    expected.append(lineEnd);
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString(null) + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void triggerTailRecursionElimination() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String ignored = "9";
+    String specializationValue = "1";
+    String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "tailRecursiveFunction",
+        "-", "0", specializationValue, ignored};
+
+    Class<?> declaringClass = Class.forName(SPECIALIZATION_TEST_CLASS);
+    NormalMethod method = TestingTools.getNormalMethod(declaringClass, "tailRecursiveFunction", int.class);
+    List<SpecializedMethod> existingCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeSpecializationMsg();
+
+    List<SpecializedMethod> listOfCandidates = SpecializationDatabase.getSpecialVersionsThatNeedToBeCalledFromGeneralMethod(method);
+    listOfCandidates.removeAll(existingCandidates);
+    assertThat(listOfCandidates.size(), is(1));
+    SpecializedMethod spMethod = listOfCandidates.get(0);
+    StringBuilder expected = new StringBuilder();
+    for (int i = 1; i < 10; i++) {
+        expected.append(Integer.toString(i));
+        expected.append("\n");
+      }
+    expected.append("Done\n");
+    String methodOutput = expected.toString();
+    String expectedOutput = OptTestHarness.startOfExecutionString(spMethod) + lineEnd +
+        methodOutput + OptTestHarness.endOfExecutionString(spMethod) +
+        lineEnd + OptTestHarness.resultString("10") + lineEnd;
+    removeMessageFromStandardOutput(expectedOutput);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  @Test
+  public void recompileMethodWhenNothingHasBeenCompiled() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String[] specializationArgs = { "-specRecompileGeneralMethods"};
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatRecompilationRequestWasDisallowed();
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    assertThatRemainingOutputIsEmptyWhenTrimmed();
+  }
+
+  private void assertThatRecompilationRequestWasDisallowed() {
+    String errorMessage = "Requested recompilation of general methods. " +
+        "This option is intended for method specialization but no specialized methods have been created yet!" +
+        lineEnd;
+    removeMessageFromErrorOutput(errorMessage);
+  }
+
+  @Test
+  public void recompileAfterCompilingAnOrdinaryMethodIsDisallowed() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String[] specializationArgs = {"-methodOpt", SPECIALIZATION_TEST_CLASS,
+        "intIsConstant", "-", "-specRecompileGeneralMethods"};
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+
+    assertThatRecompilationRequestWasDisallowed();
+    assertThatNoAdditionalErrorsHaveOccurred();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(1);
+  }
+
+  @Test
+  public void recompileAfterSpecializingAMethodIsAllowed() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String specializationValue = "1";
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods"};
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeSpecializationMsg();
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  private void removeMessageForRecompilationOfMethod(String methodName) {
+    String msg = "Recompiling general version of " + methodName + lineEnd;
+    removeMessageFromStandardOutput(msg);
+  }
+
+  @Test
+  public void recompilingAfterSeveralMethodsWereSpecializedWorks() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String secondMethodName = "typeParamIsOfSpecificType";
+    String specializationValue = "1";
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specClass",
+        SPECIALIZATION_TEST_CLASS, "-spec", secondMethodName,
+        "-", "0", "B", "-specRecompileGeneralMethods"};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeSpecializationMsg();
+    removeSpecializationMsg();
+    removeMessageForRecompilationOfMethod(methodName);
+    removeMessageForRecompilationOfMethod(secondMethodName);
+    assertThatNumberOfBaselineCompiledMethodsIs(0);
+    assertThatNumberOfOptCompiledMethodsIs(0);
+    assertThatNumberOfRecompiledMethodsIs(2);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  private void assertThatNumberOfRecompiledMethodsIs(int count) {
+    assertThat(specialization.getNumberOfRecompiledMethods(), is(count));
+  }
+
+  @Test
+  public void recompilingAMethodUsesCurrentOptions() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String specializationValue = "1";
+
+    // In order for the test to work, we must set an option to a non-default
+    // value so that we can detect the change.
+    assertThat(new OptOptions().CONTROL_TURN_WHILES_INTO_UNTILS, is(false));
+    String compilerOption = "-oc:control_unwhile=true";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, compilerOption,
+        "-specRecompileGeneralMethods"};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeMessageForRecompilationOfMethod(methodName);
+    OptOptions lastRecompilationOptions = specialization.getOptionsForRecompilingGeneralMethods();
+    assertThat(lastRecompilationOptions.CONTROL_TURN_WHILES_INTO_UNTILS, is(true));
+    assertThatNumberOfRecompiledMethodsIs(1);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callIntSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String specializationValue = "1";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    String output = buildConstantAndOneOutput(true, true);
+    removeMessageFromStandardOutput(output);
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureIntSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String specializationValue = "1";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", "2"};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    String output = buildConstantAndOneOutput(false, false);
+    removeMessageFromStandardOutput(output);
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callLongSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String anInt = "23";
+    String anotherInt = "-42";
+    String methodName = "longIsConstant";
+    String specializationValue = "1234567891011121314";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "1", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", anInt, specializationValue, anotherInt};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureLongSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String anInt = "23";
+    String anotherInt = "-42";
+    String anotherLong = "-123456789101112";
+    String methodName = "longIsConstant";
+    String specializationValue = "1234567891011121314";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "1", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", anInt, anotherLong, anotherInt};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, false, anotherLong));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callTypeSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "typeParamIsOfSpecificType";
+    String specializationValue = "B";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    appendParameterIsOfSpecializedType(expected, true);
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  private void appendParameterIsOfSpecializedType(StringBuilder expected,
+      boolean b) {
+    expected.append("Parameter 0 is of a specialized type: ");
+    expected.append(b);
+  }
+
+  @Test
+  public void ensureTypeSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "typeParamIsOfSpecificType";
+    String specializationValue = "B";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", "A"};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    appendParameterIsOfSpecializedType(expected, false);
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callBooleanSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "booleanIsConstant";
+    String specializationValue = "true";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureBooleanSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "booleanIsConstant";
+    String specializationValue = "true";
+
+    String booleanValue = "false";
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", booleanValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, booleanValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callShortSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "shortIsConstant";
+    String specializationValue = "123";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureShortSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "shortIsConstant";
+    String specializationValue = "12345";
+    String otherShort = "-12345";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", otherShort};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, otherShort));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callByteSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "byteIsConstant";
+    String specializationValue = "123";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureByteSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "byteIsConstant";
+    String specializationValue = "123";
+    String otherByteValue = "-42";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", otherByteValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, otherByteValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callCharSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "charIsConstant";
+    String specializationValue = "@";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureCharSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "charIsConstant";
+    String specializationValue = "@";
+    String otherChar = "!";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", otherChar};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, otherChar));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callFloatSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "floatIsConstant";
+    String specializationValue = "1.234";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureFloatSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "floatIsConstant";
+    String specializationValue = "1.234";
+    String otherFloat = "5.0271E-10";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", otherFloat};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, otherFloat));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callDoubleSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "doubleIsConstantMultipleParameters";
+    String anInt = "123";
+    String anotherInt = "234";
+    String specializationValue = "1.234567891011E-10";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "1", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", anInt, specializationValue, anotherInt};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, true, specializationValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureDoubleSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "doubleIsConstantMultipleParameters";
+    String anInt = "123";
+    String anotherInt = "234";
+    String specializationValue = "1.234567891011E-10";
+    String anotherDoubleValue = Double.toString(Double.NEGATIVE_INFINITY);
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "1", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", anInt, anotherDoubleValue, anotherInt};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, anInt));
+    expected.append(buildStringForParameterIsConstant(1, false, anotherDoubleValue));
+    expected.append(buildStringForParameterIsConstant(2, false, anotherInt));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callNullSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "typeParamIsNull";
+    String specializationValue = "null";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, true, specializationValue));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void ensureNullSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "typeParamIsNull";
+    String specializationValue = "null";
+    String nonNullValue = "B";
+    String nonNullValueToString = "B-object";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", nonNullValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildStringForParameterIsConstant(0, false, nonNullValueToString));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callIntInstanceSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstantInstanceMethod";
+    String specializationValue = "1";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildParameterOneImplicitIsZeroIsConstantOutput(true));
+    expected.append(buildOneAndConstantAndOneOutput(true, true));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  private String buildParameterOneImplicitIsZeroIsConstantOutput(boolean constant) {
+    return "Parameter 1 (implicit this is 0) is constant: " + constant + lineEnd;
+  }
+
+  private String buildOneAndConstantAndOneOutput(boolean constant,
+      boolean one) {
+    String methodOutput = "Parameter is one : " + one + "\n" +
+      "Parameter is constant and one: " + (constant && one) + "\n";
+    return methodOutput;
+  }
+
+  @Test
+  public void ensureIntInstanceSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstantInstanceMethod";
+    String specializationValue = "1";
+    String otherValue = "2";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", otherValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildParameterOneImplicitIsZeroIsConstantOutput(false));
+    expected.append(buildOneAndConstantAndOneOutput(false, false));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callIntInstanceSynchronizedSpecializedMethodViaGeneralOne() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstantInstanceMethodSynchronized";
+    String specializationValue = "1";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    StringBuilder expected = new StringBuilder();
+    expected.append(buildParameterOneImplicitIsZeroIsConstantOutput(true));
+    expected.append(buildOneAndConstantAndOneOutput(true, true));
+    removeMessageFromStandardOutput(expected.toString());
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void specializeMultipleMethods() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "intIsConstant";
+    String specializationValue = "1";
+    String secondSpecializationValue = "2";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specClass",
+        SPECIALIZATION_TEST_CLASS, "-spec", methodName, "-", "0", secondSpecializationValue,
+        "-specRecompileGeneralMethods", "-er", SPECIALIZATION_TEST_CLASS, methodName,
+        "-", specializationValue, "-er", SPECIALIZATION_TEST_CLASS, methodName,
+        "-", secondSpecializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeSpecializationMsg();
+    removeSpecializationMsg();
+    removeMessageForRecompilationOfMethod(methodName);
+    removeMessageFromStandardOutput(buildConstantAndOneOutput(true, true));
+    removeMessageFromStandardOutput(buildConstantAndOneOutput(true, false));
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void testSpecializationOnHashMapGet() throws Exception {
+    // NOTE: This is actually a regression test that reproduced
+    //  a real bug that I had introduced.
+
+    assumeThatVMIsBuildForOptCompiler();
+    assumeThat(VM.BuildForGnuClasspath, is(true));
+
+    String hashMap = "java.util.HashMap";
+    String hash = "hash";
+    String register = "org.jikesrvm.compilers.opt.ir.Register";
+
+    String[] hashSpec = { "-specClass", hashMap, "-spec", hash, "-",
+            "0", register, "-specRecompileGeneralMethods"};
+    executeOTHWithStreamRedirectionAndSpecialization(hashSpec);
+    String specializationMsg = "Specializing in class " + hashMap + lineEnd;
+    removeMessageFromStandardOutput(specializationMsg);
+    removeMessageForRecompilationOfMethod(hash);
+
+    String methodName = "intIsConstantInstanceMethod";
+    String specializationValue = "1";
+    String otherValue = "2";
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue,
+        "-specRecompileGeneralMethods", "-er", SPECIALIZATION_TEST_CLASS, methodName,
+        "-", otherValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeSpecializationMsg();
+    removeMessageForRecompilationOfMethod(methodName);
+    removeMessageFromStandardOutput(buildParameterOneImplicitIsZeroIsConstantOutput(false));
+    removeMessageFromStandardOutput(buildOneAndConstantAndOneOutput(false, false));
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void specializeOnObjectParameterOfEmptyMethod() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    // Smoke test - ok if compiler does not throw errors.
+    // Note: IIRC this was also based on a real bug.
+
+    String methodName = "emptyMethodWithObjectParameter";
+    String specializationValue = "null";
+
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeMessageForRecompilationOfMethod(methodName);
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void callMethodWithLoop() throws Exception {
+    // Note: this is another regression test. IIRC it was based on a method
+    // from either lusearch or luindex but I might be wrong.
+    assumeThatVMIsBuildForOptCompiler();
+
+    String methodName = "methodWithDoWhile";
+    String specializationValue = "10";
+    String secondArg = "20";
+    String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", SPECIALIZATION_TEST_CLASS, methodName, "-", specializationValue, secondArg};
+
+    executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    removeMessageForRecompilationOfMethod(methodName);
+    StringBuilder expected = new StringBuilder();
+    for (int i = 10; i < 21; i++) {
+      expected.append(Integer.toString(i));
+      expected.append(lineEnd);
+    }
+    removeMessageFromStandardOutput(expected.toString());
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  @Test
+  public void specializedMethodsDoNotAppearInStackTraces() throws Exception {
+    assumeThatVMIsBuildForOptCompiler();
+
+    String className = "StackTraceTestClass";
+    String methodName = "throwException";
+    String specializationValue = "1";
+    String[] specializationArgs = {"-specClass", className,
+        "-spec", methodName, "-", "0", specializationValue, "-specRecompileGeneralMethods",
+        "-er", className, methodName, "-", specializationValue};
+
+    boolean exception = false;
+    StackTraceElement[] stackTraceElements = null;
+
+    try {
+      executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
+    } catch (Exception e) {
+      stackTraceElements = e.getCause().getStackTrace();
+      exception = true;
+    }
+    assertThat(exception, is(true));
+    removeMessageForRecompilationOfMethod(methodName);
+
+    String prefix = className + "." + methodName + "(" + className + ".java:";
+    String linenumber = "25";
+    String expected = prefix + linenumber + ")";
+
+    int prefixCount = 0;
+    int expectedCount = 0;
+    for (StackTraceElement ste : stackTraceElements) {
+      String elementString = ste.toString();
+      if (elementString.contains(prefix)) {
+        prefixCount++;
+      }
+      if (elementString.contains(expected)) {
+        expectedCount++;
+      }
+    }
+    assertThat(expectedCount, is(1));
+    assertThat(prefixCount, is(1));
+    assertThatNoAdditionalErrorsHaveOccurred();
+  }
+
+  // TODO more tests for instance methods
+  // TODO more tests, e.g. for returns
+  // TODO more tests ...
 
 }

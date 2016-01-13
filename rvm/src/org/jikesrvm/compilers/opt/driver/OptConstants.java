@@ -43,6 +43,28 @@ public final class OptConstants {
   public static final int OSR_PROLOGUE = -15;
   public static final int SYNTH_LOOP_VERSIONING_BCI = -16;
 
+  /**
+   * This dummy bytecode index is used for all stores to specialized parameters.
+   */
+  public static final int SPECIALIZATION_PARAMETER_VALUES_BCI = -19;
+
+  /**
+   * This dummy bytecode index is used for all checks for specialized methods.
+   */
+  public static final int SPECIALIZED_CALLS_CHECK_BCI = -17;
+
+  /**
+   * This dummy bytecode index is used for all instructions in
+   * basic blocks that can be reached directly from the blocks
+   * with checks for the specialized calls.
+   */
+  public static final int SPECIALIZED_CALLS_ACTUAL_CALLS_BCI = -18;
+
+  public static final int CHECKS_FOR_SPECIALIZED_METHODS_START_BCI = -1800000000;
+
+  public static final int CALLS_FOR_SPECIALIZED_METHODS_START_BCI = -1700000000;
+
+
   // The following are used as trinary return values in OptCompiler code
   public static final byte NO = 0;
   public static final byte YES = 1;

@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Stack;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.AbstractParameterInfo;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.common.CompiledMethod;
@@ -142,6 +143,13 @@ public final class IR {
    * in the NormalMethod.
    */
   public final TypeReference[] params;
+
+  /**
+   * The values for specialized parameters. These will be used to
+   * construct {@link ConstantOperand}s  for the matching parameters
+   * instead of {@link RegisterOperand}s.
+   */
+  public final AbstractParameterInfo[] paramValues;
 
   /**
    * @return The {@link NormalMethod} object corresponding to the
@@ -308,6 +316,7 @@ public final class IR {
     }
   }
 
+  //Internal note for me: This constructor is used only tests
   /**
    * @param m    The method to compile
    * @param ip   The inlining oracle to use for the compilation
@@ -316,6 +325,7 @@ public final class IR {
   public IR(NormalMethod m, InlineOracle ip, OptOptions opts) {
     method = m;
     params = null;
+    paramValues = null;
     options = opts;
     inlinePlan = ip;
     instrumentationPlan = null;
@@ -329,6 +339,7 @@ public final class IR {
   public IR(NormalMethod m, CompilationPlan cp) {
     method = m;
     params = cp.params;
+    paramValues = cp.infoForSpecialization;
     options = cp.options;
     inlinePlan = cp.inlinePlan;
     instrumentationPlan = cp.instrumentationPlan;
@@ -763,6 +774,27 @@ public final class IR {
     // TODO: Enable this check; currently finds some broken IR
     //       that we need to fix.
     // verifyAllBlocksAreReachable(where);
+  }
+
+  /**
+   * Does the given IR belong to a method that was specialized using
+   * a {@link ParameterValueSpecializationContext}?
+   * <p>
+   * This has implications for all operations that rewrite method calls:
+   * <ul>
+   *   <li>Methods specialized on parameter values ignore all values passed
+   *    for the parameter that are specialized. They use the value that was
+   *    used in the specialization process.
+   *   <li>Methods specialized on parameter types have a more precise
+   *    type for the local that belongs to this parameter. Optimizations may
+   *    produce type-incompatible assignments because the local's type is
+   *    more precise than in the unspecialized method.
+   * </ul>
+   *
+   * @return <code>true</code> if the given IR belongs to a specialized method
+   */
+  public boolean belongsToSpecializedMethod() {
+    return paramValues != null;
   }
 
   /**

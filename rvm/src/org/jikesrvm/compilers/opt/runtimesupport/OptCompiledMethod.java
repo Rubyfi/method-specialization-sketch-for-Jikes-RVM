@@ -30,6 +30,8 @@ import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.InlineGuard;
 import org.jikesrvm.compilers.opt.ir.Instruction;
 import org.jikesrvm.compilers.opt.mir2mc.MachineCodeOffsets;
+import org.jikesrvm.compilers.opt.specialization.SpecializationDatabase;
+import org.jikesrvm.compilers.opt.specialization.SpecializedMethodPool;
 import org.jikesrvm.osr.EncodedOSRMap;
 import org.jikesrvm.runtime.DynamicLink;
 import org.jikesrvm.runtime.ExceptionDeliverer;
@@ -284,6 +286,34 @@ public final class OptCompiledMethod extends CompiledMethod {
     if (patchMap != null) size += RVMArray.IntArray.getInstanceSize(patchMap.length);
     return size;
   }
+
+  // Specialization Support
+
+  /**
+   * Does this compiled method belong to a {@link SpecializedMethod} that was specialized using
+   * a {@link ParameterValueSpecializationContext}?
+   * @return <code>true</code> if this method is such a specialized method
+   */
+  public boolean belongsToParamSpecializedMethod() {
+    if (SpecializedMethodPool.getSpecializedMethodCount() == 0) {
+      return false;
+    }
+
+    int[] smids = SpecializationDatabase.getSMIDsForParamSpecializedMethods();
+    int index = 0;
+    while (index < smids.length) {
+      int smid = smids[index];
+      CodeArray codeStart = SpecializedMethodPool.getCodeArrayForSpecializedMethod(smid);
+      if (codeStart == getEntryCodeArray()) {
+        return true;
+      }
+      index++;
+    }
+
+    return false;
+  }
+
+
 
   //----------------//
   // implementation //

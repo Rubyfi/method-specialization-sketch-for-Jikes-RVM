@@ -64,6 +64,14 @@ V CBSMethodSampleStride int 3
 Stride between each CBS method sample (any yieldpoint) within a sampling window
 
 
+V CBSParamSamplesPerTick int 8
+How many CBS parameter samples (Prologue, Backedge and Epilogue) should we take per time tick
+
+
+V CBSParamSampleStride int 2
+Stride between each CBS parameter sample (Prologue, Backedge and Epilogue) within a sampling window
+
+
 V TuningForkTraceFile String null tfTraceFile
 Filename to use for TuningFork trace generation
 

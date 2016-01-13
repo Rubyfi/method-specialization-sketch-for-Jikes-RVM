@@ -19,6 +19,8 @@ import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 
@@ -45,6 +47,7 @@ public abstract class MultianewarrayHelper {
    *
    * @return newly allocated multidimensional array
    */
+  @MakesAssumptionsAboutCallStack(How.Direct)
   @Entrypoint
   static Object newArrayArray(int methodId, int numDimensions, int typeId, int argOffset)
       throws NoClassDefFoundError, NegativeArraySizeException, OutOfMemoryError {

@@ -17,6 +17,9 @@ import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.StackBrowser;
 
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
+
 /**
  * This is a cheap stack browser.  Better would be something like
  * the Jikes RVM {@link StackBrowser} class.
@@ -28,6 +31,7 @@ import org.jikesrvm.runtime.StackBrowser;
  * description of what these methods should do. NOTE: we do not quote
  * any JavaDoc that would cause JavaDoc warnings to be emitted in JDK8.
  */
+@MakesAssumptionsAboutCallStack(How.Transitive)
 public final class VMStackWalker {
 
   /**

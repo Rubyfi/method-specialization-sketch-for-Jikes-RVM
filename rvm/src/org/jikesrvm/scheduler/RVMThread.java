@@ -59,6 +59,8 @@ import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.pragma.NoCheckStore;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
@@ -545,6 +547,11 @@ public final class RVMThread extends ThreadContext {
   public boolean yieldForCBSMethod;
 
   /**
+   * Is CBS enabled for 'param' yieldpoints?
+   */
+  public boolean yieldForCBSParam;
+
+  /**
    * Number of CBS samples to take in this window
    */
   public int numCBSCallSamples;
@@ -573,6 +580,21 @@ public final class RVMThread extends ThreadContext {
    * round robin starting point for CBS samples
    */
   public int firstCBSMethodSample;
+
+  /**
+   * Number of CBS param samples to take in this window
+   */
+  public int numCBSParamSamples;
+
+  /**
+   * Number of counter ticks between CBS param samples
+   */
+  public int countdownCBSParam;
+
+  /**
+   * round robin starting point for CBS param samples
+   */
+  public int firstCBSParamSample;
 
   /* --------- BEGIN PPC-specific fields. NOTE: NEED TO REFACTOR --------- */
   /**
@@ -2023,6 +2045,7 @@ public final class RVMThread extends ThreadContext {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   @Unpreemptible("May block if asked to do so, but otherwise does not actions that would block")
   void checkBlock() {
     saveThreadState();
@@ -2368,6 +2391,7 @@ public final class RVMThread extends ThreadContext {
    * be in a method that is marked BaselineSaveLSRegisters.
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void saveThreadState() {
     Address curFP = Magic.getFramePointer();
     getCurrentThread().contextRegisters.setInnermost(Magic.getReturnAddressUnchecked(curFP),
@@ -2389,6 +2413,7 @@ public final class RVMThread extends ThreadContext {
    * returning to IN_JAVA by way of a leaveNative() call.
    */
   @NoInline // so we can get the fp
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void enterNative() {
     RVMThread t = getCurrentThread();
     if (ALWAYS_LOCK_ON_STATE_TRANSITION) {
@@ -3278,6 +3303,7 @@ public final class RVMThread extends ThreadContext {
    * caller has appropriate security clearance.
    */
   @UnpreemptibleNoWarn("Exceptions may possibly cause yields")
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public void suspend() {
     if (false) VM.sysWriteln("Thread #",getCurrentThreadSlot()," suspending Thread #",getThreadSlot());
     ObjectModel.genericUnlock(thread);
@@ -4214,7 +4240,7 @@ public final class RVMThread extends ThreadContext {
       if (t.timeSliceExpired != 0) {
         t.timeSliceExpired = 0;
 
-        if (t.yieldForCBSCall || t.yieldForCBSMethod) {
+        if (t.yieldForCBSCall || t.yieldForCBSMethod || t.yieldForCBSParam) {
           /*
            * CBS Sampling is still active from previous quantum. Note that fact,
            * but leave all the other CBS parameters alone.
@@ -4236,6 +4262,15 @@ public final class RVMThread extends ThreadContext {
             t.firstCBSMethodSample = t.firstCBSMethodSample % VM.CBSMethodSampleStride;
             t.countdownCBSMethod = t.firstCBSMethodSample;
             t.numCBSMethodSamples = VM.CBSMethodSamplesPerTick;
+          }
+
+          if (VM.CBSParamSamplesPerTick > 0) {
+            t.yieldForCBSParam = true;
+            t.takeYieldpoint = -1;
+            t.firstCBSParamSample++;
+            t.firstCBSParamSample = t.firstCBSParamSample % VM.CBSParamSampleStride;
+            t.countdownCBSParam = t.firstCBSParamSample;
+            t.numCBSParamSamples = VM.CBSParamSamplesPerTick;
           }
         }
 
@@ -4286,6 +4321,27 @@ public final class RVMThread extends ThreadContext {
           t.takeYieldpoint = 1;
         }
       }
+
+      if (t.yieldForCBSParam) {
+        if (whereFrom == PROLOGUE || whereFrom == BACKEDGE || whereFrom == EPILOGUE) {
+          if (--t.countdownCBSParam <= 0) {
+            if (VM.BuildForAdaptiveSystem) {
+              // take CBS sample
+              RuntimeMeasurements.takeCBSParamSample(whereFrom,
+                  yieldpointServiceMethodFP);
+            }
+            t.countdownCBSParam = VM.CBSParamSampleStride;
+            t.numCBSParamSamples--;
+            if (t.numCBSParamSamples <= 0) {
+              t.yieldForCBSParam = false;
+            }
+          }
+        }
+        if (t.yieldForCBSParam) {
+          t.takeYieldpoint = 1;
+        }
+      }
+
 
       if (VM.BuildForAdaptiveSystem && t.yieldToOSRRequested) {
         t.yieldToOSRRequested = false;
@@ -4358,6 +4414,7 @@ public final class RVMThread extends ThreadContext {
   }
 
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   @BaselineNoRegisters
   // this method does not do a normal return and hence does not execute epilogue
   // --> non-volatiles not restored!
@@ -4503,6 +4560,7 @@ public final class RVMThread extends ThreadContext {
    * @param delta
    *          displacement to be applied to all its interior references
    */
+  @MakesAssumptionsAboutCallStack(How.Direct)
   private static void adjustStack(byte[] stack, Address fp, Offset delta) {
     if (traceAdjustments)
       VM.sysWrite("Thread: adjustStack\n");
@@ -5415,6 +5473,7 @@ public final class RVMThread extends ThreadContext {
     }
   }
 
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void traceback(String message, int number) {
     if (VM.runningVM && threadingInitialized) {
       outputLock.lockNoHandshake();
@@ -5426,6 +5485,7 @@ public final class RVMThread extends ThreadContext {
     }
   }
 
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   static void tracebackWithoutLock() {
     if (VM.runningVM) {
       VM.sysWriteln("Thread #", getCurrentThreadSlot());
@@ -5439,6 +5499,7 @@ public final class RVMThread extends ThreadContext {
    * Dump stack of calling thread, starting at callers frame
    */
   @UninterruptibleNoWarn("Never blocks")
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void dumpStack() {
     if (VM.runningVM) {
       VM.sysWriteln("Dumping stack for Thread #", getCurrentThreadSlot());
@@ -5458,6 +5519,7 @@ public final class RVMThread extends ThreadContext {
    * @param fp address of starting frame. first frame output is the calling
    * frame of passed frame
    */
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void dumpStack(Address fp) {
     if (VM.VerifyAssertions) {
       VM._assert(VM.runningVM);
@@ -5734,6 +5796,7 @@ public final class RVMThread extends ThreadContext {
   /**
    * Dump state of virtual machine.
    */
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static void dumpVirtualMachine() {
     boolean b = Monitor.lockNoHandshake(dumpLock);
     getCurrentThread().disableYieldpoints();

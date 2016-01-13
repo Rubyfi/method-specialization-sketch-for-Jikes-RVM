@@ -25,12 +25,14 @@ import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.NonMovingAllocation;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.Untraced;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.AddressArray;
 import org.vmmagic.unboxed.ObjectReference;
@@ -305,6 +307,7 @@ public final class JNIEnvironment {
    */
   @Uninterruptible("Objects on the stack won't be recognized by GC, therefore don't allow GC")
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public void entryToJNI(int encodedReferenceOffsets) {
     // Save processor
     savedTRreg = Magic.getThreadRegister();

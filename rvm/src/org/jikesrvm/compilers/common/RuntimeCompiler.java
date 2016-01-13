@@ -359,6 +359,7 @@ public class RuntimeCompiler implements Callbacks.ExitMonitor {
       }
 
       Callbacks.notifyMethodCompile(method, CompiledMethod.OPT);
+      Callbacks.notifyMethodOptCompile(method, plan);
       long start = 0;
       CompiledMethod cm = null;
       try {

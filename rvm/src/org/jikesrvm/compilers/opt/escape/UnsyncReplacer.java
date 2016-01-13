@@ -15,7 +15,6 @@ package org.jikesrvm.compilers.opt.escape;
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.compilers.opt.DefUse;
-import org.jikesrvm.compilers.opt.OptOptions;
 import org.jikesrvm.compilers.opt.ir.Call;
 import org.jikesrvm.compilers.opt.ir.Empty;
 import org.jikesrvm.compilers.opt.ir.New;
@@ -42,9 +41,9 @@ final class UnsyncReplacer {
    */
   private final Register reg;
   /**
-   * Controlling compiler options
+   * The IR of the method being compiled.
    */
-  private final OptOptions options;
+  private final IR ir;
   /**
    * Singleton: a single context representing "specialize this method when
    * the invokee of this method is thread-local"
@@ -53,11 +52,11 @@ final class UnsyncReplacer {
 
   /**
    * @param r the register operand target of the allocation
-   * @param options controlling compiler options
+   * @param ir governing IR
    */
-  private UnsyncReplacer(Register r, OptOptions options) {
+  private UnsyncReplacer(Register r, IR ir) {
     reg = r;
-    this.options = options;
+    this.ir = ir;
   }
 
   /**
@@ -70,7 +69,7 @@ final class UnsyncReplacer {
    */
   public static UnsyncReplacer getReplacer(Instruction inst, IR ir) {
     Register r = New.getResult(inst).getRegister();
-    return new UnsyncReplacer(r, ir.options);
+    return new UnsyncReplacer(r, ir);
   }
 
   /**
@@ -105,7 +104,13 @@ final class UnsyncReplacer {
           // replace with equivalent call on the synthetic
           // unsynchronized type
           MethodOperand mop = Call.getMethod(inst);
-          if (mop.getTarget().isSynchronized()) {
+          // Call instructions for specialized versions that are thread-local
+          // must not be rewritten.
+          // TODO Ideally, one would want to create a "combined" special version
+          // that is thread-local and specialized. Unfortunately, the current
+          // specialization infrastructure does not support that.
+          boolean safeToChange = !ir.gc.isSpecializedCallInGeneralMethod(inst);
+          if (mop.getTarget().isSynchronized() && safeToChange) {
             mop.spMethod = context.findOrCreateSpecializedVersion((NormalMethod) mop.getTarget());
             if (DEBUG) {
               VM.sysWrite("Identified call " + inst + " for unsynchronization\n");

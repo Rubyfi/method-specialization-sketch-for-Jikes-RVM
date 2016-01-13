@@ -174,7 +174,8 @@ public final class TypeReference {
   public static final TypeReference BaselineNoRegisters = findOrCreate(org.vmmagic.pragma.BaselineNoRegisters.class);
   public static final TypeReference BaselineSaveLSRegisters = findOrCreate(org.vmmagic.pragma.BaselineSaveLSRegisters.class);
   public static final TypeReference ReferenceFieldsVary = findOrCreate(org.vmmagic.pragma.ReferenceFieldsVary.class);
-
+  public static final TypeReference MakesAssumptionsAboutCallStack = findOrCreate(org.vmmagic.pragma.MakesAssumptionsAboutCallStack.class);
+  public static final TypeReference NoOptCompile = findOrCreate(org.vmmagic.pragma.NoOptCompile.class);
 
   public static final TypeReference ReferenceMaps =
       findOrCreate(org.jikesrvm.compilers.baseline.ReferenceMaps.class);
@@ -195,6 +196,8 @@ public final class TypeReference {
 
   public static final TypeReference OptimizationPlanner =
       (VM.BuildForAdaptiveSystem) ? findOrCreate(org.jikesrvm.compilers.opt.driver.OptimizationPlanner.class) : null;
+
+
 
   /**
    * Hash value based on name, used for canonical type dictionary

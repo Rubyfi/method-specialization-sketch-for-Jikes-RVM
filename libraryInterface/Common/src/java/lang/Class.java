@@ -49,8 +49,10 @@ import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.StackBrowser;
 import org.jikesrvm.util.UnimplementedError;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Pure;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 
 /**
  * Implementation of java.lang.Class for JikesRVM.
@@ -410,6 +412,7 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
     return result;
   }
 
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public ClassLoader getClassLoader() {
     SecurityManager security = System.getSecurityManager();
     if (security != null) {
@@ -780,11 +783,13 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   // --- ForName ---
 
   @Inline
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static Class<?> forName(String typeName) throws ClassNotFoundException {
     ClassLoader parentCL = RVMClass.getClassLoaderFromStackFrame(1);
     return forNameInternal(typeName, true, parentCL);
   }
 
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   public static Class<?> forName(String className, boolean initialize, ClassLoader classLoader)
     throws ClassNotFoundException,
            LinkageError,
@@ -840,6 +845,7 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
 
   // --- newInstance ---
 
+  @MakesAssumptionsAboutCallStack(How.Transitive)
   @Inline(value = Inline.When.ArgumentsAreConstant, arguments = {0})
   public T newInstance() throws IllegalAccessException, InstantiationException,
     ExceptionInInitializerError, SecurityException {

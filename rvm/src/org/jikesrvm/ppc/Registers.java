@@ -26,6 +26,8 @@ import org.jikesrvm.architecture.AbstractRegisters;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Memory;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -119,6 +121,7 @@ public final class Registers extends AbstractRegisters {
    */
   @Override
   @Uninterruptible
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public void initializeStack(Address ip, Address sp) {
     Address fp;
     // align stack frame

@@ -789,8 +789,18 @@ public abstract class ConvertToLowLevelIR extends IRTools {
 
     MethodOperand methOp = Call.getMethod(v);
 
+    // General versions of a method call specialized versions in special call blocks.
+    // These calls are not recursive, so they should not be rewritten.
+    boolean isSpecCallInGeneralMethod = ir.gc.isSpecializedCallInGeneralMethod(v);
+
+    // NB: Rewriting recursive calls in specialized methods is incorrect in general,
+    //  so conservatively disallow it.
+    boolean isSpecializedMethod = ir.belongsToSpecializedMethod();
+
+    boolean safeToRewrite = !isSpecCallInGeneralMethod && !isSpecializedMethod;
+
     // Handle recursive invocations.
-    if (methOp.hasPreciseTarget() && methOp.getTarget() == ir.method) {
+    if (methOp.hasPreciseTarget() && methOp.getTarget() == ir.method && safeToRewrite) {
       Call.setAddress(v, new BranchOperand(ir.firstInstructionInCodeOrder()));
       return v;
     }

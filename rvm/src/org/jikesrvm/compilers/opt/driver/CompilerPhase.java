@@ -251,12 +251,19 @@ public abstract class CompilerPhase {
    * @param tag a String to use in the start/end message of the IR dump
    */
   public static void dumpIR(IR ir, String tag, boolean forceCFG) {
-    System.out.println("********* START OF IR DUMP  " + tag + "   FOR " + ir.method);
+    String methodKind = "";
+    if (ir.belongsToSpecializedMethod()) {
+      methodKind = "---SPECIALIZED VERSION OF--- ";
+    } else  if (ir.gc.isGeneralMethodVersion()) {
+      methodKind = "---GENERAL METHOD VERSION OF--- ";
+    }
+
+    System.out.println("********* START OF IR DUMP  " + tag + "   FOR " + methodKind + ir.method);
     ir.printInstructions();
     if (forceCFG || ir.options.PRINT_CFG) {
       ir.cfg.printDepthFirst();
     }
-    System.out.println("*********   END OF IR DUMP  " + tag + "   FOR " + ir.method);
+    System.out.println("*********   END OF IR DUMP  " + tag + "   FOR " + methodKind + ir.method);
   }
 
   /**

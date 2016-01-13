@@ -34,6 +34,7 @@ import org.mmtk.utility.options.TraceRate;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.*;
 
 /**
@@ -229,6 +230,7 @@ import org.vmmagic.unboxed.*;
    */
   @LogicallyUninterruptible
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void traceAlloc(boolean isImmortal, ObjectReference ref,
       ObjectReference typeRef, int bytes) {
     boolean gcAllowed = VM.traceInterface.gcEnabled() && Plan.isInitialized() && VM.activePlan.isMutator();

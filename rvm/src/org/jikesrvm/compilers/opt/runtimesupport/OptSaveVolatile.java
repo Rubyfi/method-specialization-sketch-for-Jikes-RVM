@@ -18,8 +18,10 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.SaveVolatile;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -47,6 +49,7 @@ public class OptSaveVolatile {
    * we also save the volatile registers.
    */
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void yieldpointFromPrologue() {
     Address fp = Magic.getFramePointer();
     RVMThread.yieldpoint(RVMThread.PROLOGUE, fp);
@@ -59,6 +62,7 @@ public class OptSaveVolatile {
    * we also save the volatile registers.
    */
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void yieldpointFromEpilogue() {
     Address fp = Magic.getFramePointer();
     RVMThread.yieldpoint(RVMThread.EPILOGUE, fp);
@@ -71,6 +75,7 @@ public class OptSaveVolatile {
    * we also save the volatile registers.
    */
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void yieldpointFromBackedge() {
     Address fp = Magic.getFramePointer();
     RVMThread.yieldpoint(RVMThread.BACKEDGE, fp);
@@ -108,6 +113,7 @@ public class OptSaveVolatile {
    * OSR invalidation being initiated.
    */
   @Entrypoint
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void yieldpointFromOsrOpt() {
     Address fp = Magic.getFramePointer();
     RVMThread.getCurrentThread().yieldToOSRRequested = true;
@@ -120,6 +126,7 @@ public class OptSaveVolatile {
    * dynamically loaded/resolved/etc.
    */
   @Interruptible
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static void resolve() throws NoClassDefFoundError {
     VM.disableGC();
     // (1) Get the compiled method & compilerInfo for the (opt)

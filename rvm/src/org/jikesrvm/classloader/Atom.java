@@ -809,6 +809,7 @@ public final class Atom {
    * This is  defined as one that it would be unwise to invalidate, since invalidating
    * it might make it impossible to recompile.
    */
+  @Uninterruptible
   @Pure
   public boolean isRVMDescriptor() {
     outer:

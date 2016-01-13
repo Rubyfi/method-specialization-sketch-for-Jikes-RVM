@@ -17,8 +17,10 @@ import static org.jikesrvm.ia32.RegisterConstants.NUM_PARAMETER_GPRS;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.Magic;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.MakesAssumptionsAboutCallStack.How;
 import org.vmmagic.unboxed.Address;
 
 /**
@@ -36,6 +38,7 @@ public abstract class DynamicLinkerHelper {
    * @return the receiver object for the method invocation
    */
   @NoInline
+  @MakesAssumptionsAboutCallStack(How.Direct)
   public static Object getReceiverObject() {
     Address callingFrame = Magic.getCallerFramePointer(Magic.getFramePointer());
     callingFrame = Magic.getCallerFramePointer(callingFrame);
