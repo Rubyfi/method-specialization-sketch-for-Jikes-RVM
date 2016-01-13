@@ -9,8 +9,19 @@ The code implements method specialization as a compiler optimization, i.e. metho
 
 The implementation in this repository is much less sophisticated and more buggy, of course. It provides parameter profiling of baseline compiled application methods on IA32 32-bit via listeners and allows specialization of methods on exactly one non-receiver parameter method.
 
+Notes on the implementation
+* both parameter profiling and specialization are deactivated by default and must be switched on with flags
+* parameter profiling only supports 32-bit Linux IA32-baseline compiled methods; everything else (including opt-compiled methods) is unsupported
+* the implementation lacks useful heuristics for choosing the parameter to specialize on
+* the specialization implementation doesn't work with tail recursion elimination
+* the specialization implementation doesn't allow combining a thread-local invocation specialization and specialization on a method parameter
+* method specialization is implemented directly in BC2IR. It would probably better to do this in a separate compiler phase.
+* the synchronization of the listeners is too coarse
+
 # Building
-Works the same as a normal Jikes RVM. If you're building with require.rvm-unit-tests=true, please note that I've added specialization tests to OptTestHarnessTest. This has significantly increased the runtime for that test. For example, on prototype-opt on an old IA32 machine, the OptTestHarnessTest alone might take 1 minute.
+Works the same as a normal Jikes RVM.
+
+If you're building with require.rvm-unit-tests=true, please note that I've added specialization tests to OptTestHarnessTest. This has significantly increased the runtime for that test. For example, on prototype-opt on an old IA32 machine, the OptTestHarnessTest alone might take 1 minute.
 
 # License
 The code is provided to you under the Eclipse Public License, the same license that the Jikes RVM uses.
@@ -22,7 +33,7 @@ As described above, I don't plan to do further development on this so the code i
 In addition to the references mentioned above, I found the following references interesting (your mileage may vary):
 * "Runtime value specialization" by Panagiota Bilianou. The literature section covers most of the relevant works. The thesis also contains a chapter about possible integration of specialization with the adaptive optimization system. The thesis is available for free after registration via the electronic thesis online service of the British Library. See http://ethos.bl.uk/OrderDetails.do?uin=uk.bl.ethos.549159 .
 * "Constraint based optimization of stationary fields" by Rogers et al.
-* ("A methodology for procedure cloning" (1993) and "Procedure cloning"(1992) by Cooper et al.
+* "A methodology for procedure cloning" (1993) and "Procedure cloning"(1992) by Cooper et al.
 
 # Original Jikes RVM readme follows
 
