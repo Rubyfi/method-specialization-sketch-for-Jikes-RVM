@@ -48,7 +48,7 @@ public class ParameterValueSpecializationContext extends SpecializationContext {
 
   /**
    * NB: Use only in testcases.
-   * @param method
+   * @param method the method to specialize
    */
   ParameterValueSpecializationContext(RVMMethod method) {
     parameterInformation = null;
@@ -81,7 +81,7 @@ public class ParameterValueSpecializationContext extends SpecializationContext {
    * {@link CompilationPlan} for the specialized method and invokes the opt
    * compiler with the built plan and the options.
    *
-   * @param source
+   * @param source the method to specialize
    */
   @Override
   CompiledMethod specialCompile(NormalMethod source) {

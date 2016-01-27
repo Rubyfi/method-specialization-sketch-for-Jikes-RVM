@@ -309,11 +309,11 @@ public final class ParameterListener extends ContextListener {
    * to be opt-compiled.
    *
    * @param m a method
-   * @return <code>true/<code> if the given method is a bridge method or must not be
+   * @return {@code true} if the given method is a bridge method or must not be
    *  opt compiled
    *
-   * @see NativeBridge
-   * @see DynamicBridge
+   * @see org.vmmagic.pragma.NativeBridge NativeBridge
+   * @see org.vmmagic.pragma.DynamicBridge DynamicBridge
    */
   @Inline
   protected static boolean impossibleToSpecialize(RVMMethod m) {

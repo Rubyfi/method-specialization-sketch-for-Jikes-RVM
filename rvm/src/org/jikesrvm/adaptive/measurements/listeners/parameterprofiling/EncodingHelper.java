@@ -105,10 +105,10 @@ public final class EncodingHelper implements ParameterDecoder, ParameterEncoder 
   }
 
   /**
-   * NOTE: Must match {@link ParameterListener#dumpParameters(org.vmmagic.unboxed.Address, org.jikesrvm.compilers.baseline.BaselineCompiledMethod, int)}
+   * NOTE: Must match {@link ParameterListener#dumpParameters(org.vmmagic.unboxed.Address, org.jikesrvm.compilers.baseline.BaselineCompiledMethod, int)}<p>
    * TODO move to type reference once I can run JUnit on the RVM
-   * @param ref
-   * @return
+   * @param ref a type reference
+   * @return the size of the data type represented by the type reference, in bytes
    */
   public static int getBytesForTypeReference(TypeReference ref) {
     if (ref.isBooleanType()) {
@@ -146,9 +146,6 @@ public final class EncodingHelper implements ParameterDecoder, ParameterEncoder 
     return 0;
   }
 
-  /**
-   * @param c
-   */
   @Override
   public void encodeChar(int startIndex, char c) {
     checkThatEncodingModeIsActive();
@@ -163,10 +160,6 @@ public final class EncodingHelper implements ParameterDecoder, ParameterEncoder 
     encodedParameters[startIndex + 1] = lowerHalf;
   }
 
-  /**
-   * @param startIndex
-   * @return
-   */
   @Override
   public char decodeChar(int startIndex) {
     if (notInDecodingMode()) {
@@ -183,9 +176,6 @@ public final class EncodingHelper implements ParameterDecoder, ParameterEncoder 
     return c;
   }
 
-  /**
-   * @param bool
-   */
   @Override
   public void encodeBoolean(int startIndex, boolean bool) {
     checkThatEncodingModeIsActive();

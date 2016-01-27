@@ -113,7 +113,7 @@ public final class ParameterUtilities {
   /**
    * Log a float for debugging.
    *
-   * @param d
+   * @param f
    *          the float to log
    */
   protected static void writeForDebugging(float f) {
@@ -135,7 +135,7 @@ public final class ParameterUtilities {
   /**
    * Log a long for debugging.
    *
-   * @param d
+   * @param l
    *          the long to log
    */
   protected static void writeForDebugging(long l) {
@@ -146,7 +146,7 @@ public final class ParameterUtilities {
   /**
    * Log a short for debugging.
    *
-   * @param d
+   * @param s
    *          the double to log
    */
   protected static void writeForDebugging(short s) {
@@ -188,10 +188,10 @@ public final class ParameterUtilities {
   }
 
   /**
-   * Log an atom for debugging.
+   * Logs a String for debugging.
    *
-   * @param a
-   *          the Atom to log
+   * @param s
+   *          the String to log
    */
   @Inline
   protected static void writeForDebuggingLn(String s) {
@@ -199,12 +199,6 @@ public final class ParameterUtilities {
     // Log.writeln(s);
   }
 
-  /**
-   * Log an atom for debugging.
-   *
-   * @param a
-   *          the Atom to log
-   */
   protected static void writeForDebuggingLn() {
     VM.sysWriteln();
     // Log.writeln();

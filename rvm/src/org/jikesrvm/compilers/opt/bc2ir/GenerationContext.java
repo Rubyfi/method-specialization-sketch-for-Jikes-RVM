@@ -1122,7 +1122,9 @@ public final class GenerationContext {
 
   /**
    * Is the given instruction a call to a specialized method that needs to be treated
-   * specially by later compiler phases (e.g. {@link ConvertToLowLevelIR})?
+   * specially by later compiler phases (e.g.
+   * {@link org.jikesrvm.compilers.opt.hir2lir.ConvertToLowLevelIR ConvertToLowLevelIR})?
+   *
    * @param callInstruction a call instruction
    * @return <code>true</code> if and only if the call needs to be treated specially
    *  by later compiler phases

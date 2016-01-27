@@ -290,8 +290,9 @@ public final class OptCompiledMethod extends CompiledMethod {
   // Specialization Support
 
   /**
-   * Does this compiled method belong to a {@link SpecializedMethod} that was specialized using
-   * a {@link ParameterValueSpecializationContext}?
+   * Does this compiled method belong to a {@link org.jikesrvm.compilers.opt.specialization.SpecializedMethod SpecializedMethod}
+   * that was specialized using a {@link org.jikesrvm.compilers.opt.specialization.ParameterValueSpecializationContext ParameterValueSpecializationContext}
+   * ?
    * @return <code>true</code> if this method is such a specialized method
    */
   public boolean belongsToParamSpecializedMethod() {

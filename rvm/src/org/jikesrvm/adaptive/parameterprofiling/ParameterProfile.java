@@ -41,7 +41,7 @@ public class ParameterProfile implements ParameterProfileInformation {
 
   /**
    * NB for test cases only.
-   * @param mdp
+   * @param mdp source for profile data
    */
   public ParameterProfile(MethodDataProvider mdp) {
     int valueSize = mdp.getParameterTypes().length;

@@ -195,8 +195,8 @@ public final class SpecializationDatabase {
    *
    * This currently applies only to methods with specialized parameters.
    *
-   * @param context
-   * @param spMethod
+   * @param context the specialized method's specialization context
+   * @param spMethod the specialized method
    */
   static synchronized void registerContextWithSpecializedParameters(SpecializationContext context, SpecializedMethod spMethod) {
     RVMMethod method = spMethod.getMethod();

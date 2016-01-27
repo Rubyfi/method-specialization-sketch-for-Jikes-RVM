@@ -262,6 +262,9 @@ public abstract class RuntimeMeasurements {
 
   /**
    * Called from Thread.yieldpoint when it is time to take a CBS param sample.
+   * @param whereFrom source of the yieldpoint (e.g. backedge)
+   * @param yieldpointServiceMethodFP the frame pointer of the service
+   *  method that is responsible for handling the yieldpoint
    */
   @Uninterruptible
   public static void takeCBSParamSample(int whereFrom, Address yieldpointServiceMethodFP) {

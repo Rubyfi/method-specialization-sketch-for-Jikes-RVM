@@ -466,8 +466,7 @@ public final class Callbacks {
    * NOTE: use VM.runningVM and VM.writingBootImage to determine
    *       whether the VM is running
    * @param method the method that will be compiled
-   * @param compiler the compiler that will be invoked
-   *        Values are constants in CompiledMethod
+   * @param plan the compilation plan to be used for the opt compilation
    */
   public static void notifyMethodOptCompile(RVMMethod method, CompilationPlan plan) {
     // NOTE: will need synchronization if allowing unregistering

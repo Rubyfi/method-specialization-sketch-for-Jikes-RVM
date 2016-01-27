@@ -146,8 +146,9 @@ public final class IR {
 
   /**
    * The values for specialized parameters. These will be used to
-   * construct {@link ConstantOperand}s  for the matching parameters
-   * instead of {@link RegisterOperand}s.
+   * construct {@link org.jikesrvm.compilers.opt.ir.operand.ConstantOperand ConstantOperand}s
+   *  for the matching parameters instead of
+   *  {@link org.jikesrvm.compilers.opt.ir.operand.RegisterOperand RegisterOperand}s.
    */
   public final AbstractParameterInfo[] paramValues;
 
@@ -778,7 +779,8 @@ public final class IR {
 
   /**
    * Does the given IR belong to a method that was specialized using
-   * a {@link ParameterValueSpecializationContext}?
+   * a {@link org.jikesrvm.compilers.opt.specialization.ParameterValueSpecializationContext ParameterValueSpecializationContext}
+   * ?
    * <p>
    * This has implications for all operations that rewrite method calls:
    * <ul>

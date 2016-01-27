@@ -1540,14 +1540,12 @@ public final class Magic {
   }
 
   /**
-   * Is the operand at the given local number a {@link ConstantOperand} at this
+   * Is the operand at the given local number a constant operand at this
    * point in the code?
    *
    * @param localIndex the local's index
    * @return <code>true</code> if and only if the local at the given index
-   *  is a {@link ConstantOperand}
-   *
-   * @see BC2IR
+   *  is a constant operand
    */
   public static boolean isConstantLocal(int localIndex) {
     if (VM.VerifyAssertions && VM.runningVM) {
@@ -1565,8 +1563,6 @@ public final class Magic {
    * @param localIndex the local's index, must correspond to a parameter
    * @return <code>true</code> if and only if the local at the given index
    *  has a more precise type than its parameter in the signature
-   *
-   * @see BC2IR
    */
   public static boolean isLocalWithSpecializedType(int localIndex) {
     if (VM.VerifyAssertions && VM.runningVM) {

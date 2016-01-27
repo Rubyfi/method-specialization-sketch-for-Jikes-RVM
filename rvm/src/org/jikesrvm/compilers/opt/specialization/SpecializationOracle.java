@@ -19,8 +19,9 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 
 /**
- * Similar to {@link InlineOracle}, implementations of this interface can be queried for
- * a decision whether a method should be specialized.
+ * Similar to {@link org.jikesrvm.compilers.opt.inlining.InlineOracle InlineOracle},
+ * implementations of this interface can be queried for a decision whether a method
+ * should be specialized.
  */
 public interface SpecializationOracle {
 

@@ -18,7 +18,7 @@ public abstract class AbstractParameterInfo {
    * Does this instance have information about the parameter's type?
    *
    * @return <code>true</code> if and only if the class is a
-   *    {@link TypeValueForObjectParameter}
+   *    {@link org.jikesrvm.adaptive.parameterprofiling.TypeValueForObjectParameter TypeValueForObjectParameter}
    */
   public abstract boolean hasTypeInformation();
 

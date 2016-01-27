@@ -29,7 +29,7 @@ abstract class SpecializationContext {
    * {@link SpecializationDatabase#doDeferredSpecializations()}.
    * <p>
    * The opt compiler will make such a call after compiling a method, see
-   * {@link org.jikesrvm.compilers.opt.driver.OptimizingCompilerr#compile(org.jikesrvm.compilers.opt.driver.CompilationPlan)}.
+   * {@link org.jikesrvm.compilers.opt.driver.OptimizingCompiler#compile(org.jikesrvm.compilers.opt.driver.CompilationPlan)}.
    *
    *
    * @param source the method that needs a specialized version
@@ -85,7 +85,8 @@ abstract class SpecializationContext {
   /**
    * Create specialized method in this context.
    *
-   * @param method
+   * @param method the normal method that will be specialized
+   * @return the specialized method for the normal method
    */
   protected SpecializedMethod createSpecializedMethod(NormalMethod method) {
     return (new SpecializedMethod(method, this));

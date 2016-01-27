@@ -5284,9 +5284,6 @@ public final class BC2IR {
      * Initializes the stack so that specialized methods can be called. The stack size
      * must be adjusted if and only if the operand stack does not have enough space to
      * hold all parameters that are required for calling a specialized method.
-     *
-     * @param context the generation context
-     * @param operandWords the number of operand words required by the method
      */
     private void initializeStackForCallingSpecializedMethods() {
       int minimumWordCount = gc.getMethod().getOperandWords();
