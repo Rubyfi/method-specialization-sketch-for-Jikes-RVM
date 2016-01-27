@@ -10,10 +10,10 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.ppc;
+package org.jikesrvm.foo;
 
-/**
- * Architecture specific constants.
- */
-public interface ArchConstants extends StackframeLayoutConstants, RegisterConstants {
+import org.jikesrvm.bar.something.Disassembler; // disallowed import
+
+public class ArchitectureImportRestrictionsDisallowed2 {
+
 }

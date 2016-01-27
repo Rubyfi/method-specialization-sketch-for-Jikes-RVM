@@ -1150,7 +1150,7 @@ public final class Callbacks {
    * Linked list of callbacks.
    */
   private static class CallbackList {
-    public CallbackList(Object cb, CallbackList n) {
+    CallbackList(Object cb, CallbackList n) {
       callback = cb;
       next = n;
     }
