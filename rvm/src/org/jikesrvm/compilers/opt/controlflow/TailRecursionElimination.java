@@ -165,7 +165,7 @@ public final class TailRecursionElimination extends CompilerPhase {
     // Do not transform calls to specialized methods in general method versions.
     // Those calls are not tail recursive but would be interpreted as such because
     // TailRecursionElimination does not check the spMethod field of MethodOperand.
-    if (ir.gc.isSpecializedCallInGeneralMethod(call)) {
+    if (ir.getGc().isSpecializedCallInGeneralMethod(call)) {
       return false;
     }
 

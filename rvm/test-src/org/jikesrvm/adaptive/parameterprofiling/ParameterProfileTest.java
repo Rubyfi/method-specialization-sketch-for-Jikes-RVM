@@ -25,7 +25,7 @@ import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.junit.runners.RequiresBootstrapVM;
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.junit.Before;
 import org.junit.Test;
@@ -236,7 +236,7 @@ public class ParameterProfileTest {
     paraProfile.addNewFloatValue(floatValue);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void testAddingObjectType() throws Exception {
     when(mockProvider.getParameterTypes()).thenReturn(ONE_PARAMETER);

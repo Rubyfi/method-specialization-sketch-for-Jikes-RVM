@@ -21,7 +21,7 @@ import org.jikesrvm.classloader.ApplicationClassLoader;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -178,7 +178,7 @@ public class ParameterValueFactoryImplTest {
     assertSame(nullValue, NullParameterValue.NULL);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void creationOfObjectValues() throws Exception {
     String classThatIsGuaranteedToBeLoaded = this.getClass().getName();
@@ -194,7 +194,7 @@ public class ParameterValueFactoryImplTest {
   }
 
   @Ignore("currently disabled as this functionality has been removed because of bugs")
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void creationOfObjectValuesIsCanonicalized() throws Exception {
     String classThatIsGuaranteedToBeLoaded = this.getClass().getName();

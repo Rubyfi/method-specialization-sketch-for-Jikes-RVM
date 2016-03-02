@@ -14,8 +14,6 @@ package org.jikesrvm.tools.oth;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
-import static org.jikesrvm.tests.util.TestingTools.assumeThatVMIsBuildForOptCompiler;
-import static org.jikesrvm.tests.util.TestingTools.assumeThatVMIsNotBuildForOptCompiler;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -36,7 +34,9 @@ import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.opt.OptOptions;
 import org.jikesrvm.compilers.opt.specialization.SpecializationDatabase;
 import org.jikesrvm.compilers.opt.specialization.SpecializedMethod;
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
+import org.jikesrvm.junit.runners.RequiresLackOfOptCompiler;
+import org.jikesrvm.junit.runners.RequiresOptCompiler;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.jikesrvm.tests.util.TestingTools;
 import org.junit.Ignore;
@@ -45,7 +45,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
 @RunWith(VMRequirements.class)
-@Category(RequiresJikesRVM.class)
+@Category(RequiresBuiltJikesRVM.class)
 public class OptTestHarnessTest {
 
   private static final String lineEnd = System.getProperty("line.separator");
@@ -81,8 +81,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresLackOfOptCompiler.class)
   public void doesNotCrashWhenNoOptCompilerIsAvailable() throws InvocationTargetException, IllegalAccessException {
-    assumeThatVMIsNotBuildForOptCompiler();
     String[] emptyArgs = {};
     executeOptTestHarness(emptyArgs);
   }
@@ -191,8 +191,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void knownArgumentsAreProcessedEvenIfUnknownArgumentsAppear() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String unknownArgument = "-foo";
     String[] arguments = {unknownArgument, "+baseline"};
     OptTestHarness oth = executeOptTestHarness(arguments);
@@ -299,8 +299,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void methodsAreOptCompiledByDefault() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] compileClass = {"-class", ABSTRACT_CLASS_WITH_EMPTY_METHOD};
     executeOptTestHarness(compileClass);
 
@@ -337,16 +337,16 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void methodsAreBaselineCompiledIfRequested() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] compileClass = {"+baseline", "-class", ABSTRACT_CLASS_WITH_EMPTY_METHOD};
     executeOptTestHarness(compileClass);
     assertThatBothMethodsOfTestClass2HaveBeenBaselineCompiled();
   }
 
   @Test
+  @Category(RequiresLackOfOptCompiler.class)
   public void defaultCompilerIsBaselineWhenVMIsBuildWithoutOptCompiler() throws Exception {
-    assumeThatVMIsNotBuildForOptCompiler();
     String[] compileClass = {"-class", ABSTRACT_CLASS_WITH_EMPTY_METHOD};
     executeOptTestHarness(compileClass);
     assertThatBothMethodsOfTestClass2HaveBeenBaselineCompiled();
@@ -378,8 +378,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void methodsAreOptCompiledByDefaultWhenSingleMethodIsCompiled() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] compileClass = {"-method", ABSTRACT_CLASS_WITH_EMPTY_METHOD, "emptyMethod", "-"};
     executeOptTestHarness(compileClass);
 
@@ -394,8 +394,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void methodsWillBeBaselineCompiledIfRequested() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] compileClass = {"-methodBase", ABSTRACT_CLASS_WITH_EMPTY_METHOD, "emptyMethod", "-"};
     executeOptTestHarness(compileClass);
 
@@ -410,8 +410,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void methodsWillOptCompiledIfRequested() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] compileClass = {"+baseline", "-methodOpt", ABSTRACT_CLASS_WITH_EMPTY_METHOD, "emptyMethod", "-"};
     executeOptTestHarness(compileClass);
 
@@ -426,8 +426,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresLackOfOptCompiler.class)
   public void defaultCompilerForMethodsIsBaselineWhenVMIsBuildWithoutOptCompiler() throws Exception {
-    assumeThatVMIsNotBuildForOptCompiler();
     String[] compileClass = {"-method", ABSTRACT_CLASS_WITH_EMPTY_METHOD, "emptyMethod", "-"};
     executeOptTestHarness(compileClass);
 
@@ -719,8 +719,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void commandLineArgumentFileSupportsComments() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     fileAccess = new TestFileAccess();
     String fileName = "commandLineArgsForLongCommandLineTestWithComments";
     String fileContent = "-baseline\n" + "#" + "+baseline\n";
@@ -755,8 +755,8 @@ public class OptTestHarnessTest {
   }
 
   @Test // Note: this test will break when the bootimage options change
+  @Category(RequiresOptCompiler.class)
   public void usesSameOptionsAsBootimageCompilerWhenRequested() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
     String[] useBootimageCompilerOptions = {"-useBootOptions"};
     output = new TestOutput();
     OptOptions optOptions = new OptOptions();
@@ -800,9 +800,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void argumentsAreEagerlyEvaluatedFromLeftToRight() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String[] args = { "-class", ABSTRACT_CLASS_WITH_EMPTY_METHOD, "+baseline" };
     OptTestHarness oth = executeOptTestHarness(args);
     assertThatNoAdditionalErrorsHaveOccurred();
@@ -838,9 +837,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specTellsSpecLayerToSpecializeAMethod() throws InvocationTargetException, IllegalAccessException {
-    assumeThatVMIsBuildForOptCompiler();
-
     output = new TestOutput();
     TestSpecializationLayer testLayer = new TestSpecializationLayer(output);
     OptTestHarness oth = new OptTestHarness(testLayer, output, new OptOptions(), new DefaultFileAccess());
@@ -857,14 +855,9 @@ public class OptTestHarnessTest {
     assertThat(testLayer.getValueForSpecializationOfMethod("intIsConstant", Integer.parseInt(firstParameter), version), is(specializationValueOne));
   }
 
-  private void assumeThatVMIsBuildForOptCompiler() {
-    assumeThat(VM.BuildForOptCompiler, is(true));
-  }
-
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnAnInteger() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String firstParameter = "0";
     String specializationValueOne = "1";
     String ignored = "5";
@@ -928,9 +921,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnAnIntegerWithMultipleParameters() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "0";
     String anInt = "12";
     String anotherInt = "-34";
@@ -968,9 +960,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnAnIntegerWhenAnotherParameterIsALong() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "0";
     String anInt = "12";
     String anotherInt = "-34";
@@ -1008,9 +999,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnAnIntegerInstanceMethod() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "0";
     String specializationValue = "1";
     String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "intIsConstantInstanceMethod",
@@ -1042,9 +1032,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnADoubleWithMultipleParameters() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "1.5d";
     String specializationValue = "1.234567891011E-10";
     String anInt = "-2";
@@ -1081,9 +1070,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void longIsConstant() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "2021223242526272829";
     String specializationValue = "1234567891011121314";
     String anInt = "-2";
@@ -1120,9 +1108,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnALongWhereParameterIsWritten() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "2021223242526272829";
     String specializationValue = "1234567891011121314";
     String anInt = "-2";
@@ -1165,9 +1152,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnAType() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "null";
     String specializationValue = "B";
     String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "typeParamIsOfSpecificType",
@@ -1203,9 +1189,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnATypeInstanceMethod() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "null";
     String specializationValue = "B";
     String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "typeParamIsOfSpecificTypeInstanceMethod",
@@ -1241,9 +1226,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void triggerTailRecursionElimination() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String ignored = "9";
     String specializationValue = "1";
     String[] specializationArgs = { "-specClass", SPECIALIZATION_TEST_CLASS, "-specAndRun", "tailRecursiveFunction",
@@ -1279,9 +1263,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void recompileMethodWhenNothingHasBeenCompiled() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String[] specializationArgs = { "-specRecompileGeneralMethods"};
     executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
 
@@ -1300,9 +1283,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void recompileAfterCompilingAnOrdinaryMethodIsDisallowed() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String[] specializationArgs = {"-methodOpt", SPECIALIZATION_TEST_CLASS,
         "intIsConstant", "-", "-specRecompileGeneralMethods"};
     executeOTHWithStreamRedirectionAndSpecialization(specializationArgs);
@@ -1314,9 +1296,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void recompileAfterSpecializingAMethodIsAllowed() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String specializationValue = "1";
     String[] specializationArgs = {"-specClass", SPECIALIZATION_TEST_CLASS,
@@ -1335,9 +1316,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void recompilingAfterSeveralMethodsWereSpecializedWorks() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String secondMethodName = "typeParamIsOfSpecificType";
     String specializationValue = "1";
@@ -1362,9 +1342,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void recompilingAMethodUsesCurrentOptions() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String specializationValue = "1";
 
@@ -1386,9 +1365,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callIntSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String specializationValue = "1";
 
@@ -1404,9 +1382,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureIntSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String specializationValue = "1";
 
@@ -1422,9 +1399,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callLongSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String anInt = "23";
     String anotherInt = "-42";
     String methodName = "longIsConstant";
@@ -1445,9 +1421,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureLongSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String anInt = "23";
     String anotherInt = "-42";
     String anotherLong = "-123456789101112";
@@ -1469,9 +1444,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callTypeSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "typeParamIsOfSpecificType";
     String specializationValue = "B";
 
@@ -1494,9 +1468,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureTypeSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "typeParamIsOfSpecificType";
     String specializationValue = "B";
 
@@ -1513,9 +1486,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callBooleanSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "booleanIsConstant";
     String specializationValue = "true";
 
@@ -1532,9 +1504,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureBooleanSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "booleanIsConstant";
     String specializationValue = "true";
 
@@ -1552,9 +1523,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callShortSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "shortIsConstant";
     String specializationValue = "123";
 
@@ -1571,9 +1541,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureShortSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "shortIsConstant";
     String specializationValue = "12345";
     String otherShort = "-12345";
@@ -1591,9 +1560,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callByteSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "byteIsConstant";
     String specializationValue = "123";
 
@@ -1610,9 +1578,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureByteSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "byteIsConstant";
     String specializationValue = "123";
     String otherByteValue = "-42";
@@ -1630,9 +1597,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callCharSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "charIsConstant";
     String specializationValue = "@";
 
@@ -1649,9 +1615,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureCharSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "charIsConstant";
     String specializationValue = "@";
     String otherChar = "!";
@@ -1669,9 +1634,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callFloatSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "floatIsConstant";
     String specializationValue = "1.234";
 
@@ -1688,9 +1652,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureFloatSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "floatIsConstant";
     String specializationValue = "1.234";
     String otherFloat = "5.0271E-10";
@@ -1708,9 +1671,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callDoubleSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "doubleIsConstantMultipleParameters";
     String anInt = "123";
     String anotherInt = "234";
@@ -1731,9 +1693,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureDoubleSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "doubleIsConstantMultipleParameters";
     String anInt = "123";
     String anotherInt = "234";
@@ -1755,9 +1716,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callNullSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "typeParamIsNull";
     String specializationValue = "null";
 
@@ -1774,9 +1734,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureNullSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "typeParamIsNull";
     String specializationValue = "null";
     String nonNullValue = "B";
@@ -1795,9 +1754,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callIntInstanceSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstantInstanceMethod";
     String specializationValue = "1";
 
@@ -1826,9 +1784,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void ensureIntInstanceSpecializedMethodIsNotCalledMistakenlyViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstantInstanceMethod";
     String specializationValue = "1";
     String otherValue = "2";
@@ -1847,9 +1804,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callIntInstanceSynchronizedSpecializedMethodViaGeneralOne() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstantInstanceMethodSynchronized";
     String specializationValue = "1";
 
@@ -1867,9 +1823,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeMultipleMethods() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String methodName = "intIsConstant";
     String specializationValue = "1";
     String secondSpecializationValue = "2";
@@ -1891,11 +1846,11 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void testSpecializationOnHashMapGet() throws Exception {
     // NOTE: This is actually a regression test that reproduced
     //  a real bug that I had introduced.
 
-    assumeThatVMIsBuildForOptCompiler();
     assumeThat(VM.BuildForGnuClasspath, is(true));
 
     String hashMap = "java.util.HashMap";
@@ -1926,8 +1881,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializeOnObjectParameterOfEmptyMethod() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
 
     // Smoke test - ok if compiler does not throw errors.
     // Note: IIRC this was also based on a real bug.
@@ -1945,10 +1900,10 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void callMethodWithLoop() throws Exception {
     // Note: this is another regression test. IIRC it was based on a method
     // from either lusearch or luindex but I might be wrong.
-    assumeThatVMIsBuildForOptCompiler();
 
     String methodName = "methodWithDoWhile";
     String specializationValue = "10";
@@ -1969,9 +1924,8 @@ public class OptTestHarnessTest {
   }
 
   @Test
+  @Category(RequiresOptCompiler.class)
   public void specializedMethodsDoNotAppearInStackTraces() throws Exception {
-    assumeThatVMIsBuildForOptCompiler();
-
     String className = "StackTraceTestClass";
     String methodName = "throwException";
     String specializationValue = "1";

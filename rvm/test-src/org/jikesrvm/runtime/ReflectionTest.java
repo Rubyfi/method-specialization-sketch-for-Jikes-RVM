@@ -25,7 +25,7 @@ import java.lang.reflect.Method;
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.junit.After;
 import org.junit.Before;
@@ -36,7 +36,7 @@ import org.junit.runner.RunWith;
 import test.org.jikesrvm.testsupport.ClassWithInstanceMethods;
 
 @RunWith(VMRequirements.class)
-@Category(RequiresJikesRVM.class)
+@Category(RequiresBuiltJikesRVM.class)
 // accesses Jikes RVM internals; loading classes from protected packages like java.lang.reflect
 // is not allowed on normal JVMs
 public class ReflectionTest {

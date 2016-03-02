@@ -109,7 +109,7 @@ final class UnsyncReplacer {
           // TODO Ideally, one would want to create a "combined" special version
           // that is thread-local and specialized. Unfortunately, the current
           // specialization infrastructure does not support that.
-          boolean safeToChange = !ir.gc.isSpecializedCallInGeneralMethod(inst);
+          boolean safeToChange = !ir.getGc().isSpecializedCallInGeneralMethod(inst);
           if (mop.getTarget().isSynchronized() && safeToChange) {
             mop.spMethod = context.findOrCreateSpecializedVersion((NormalMethod) mop.getTarget());
             if (DEBUG) {

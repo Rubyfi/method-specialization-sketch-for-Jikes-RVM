@@ -14,7 +14,7 @@ package org.jikesrvm.runtime;
 
 import static org.junit.Assert.assertFalse;
 
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -22,7 +22,7 @@ import org.junit.runner.RunWith;
 import org.vmmagic.pragma.NoOptCompile;
 
 @RunWith(VMRequirements.class)
-@Category(RequiresJikesRVM.class)
+@Category(RequiresBuiltJikesRVM.class)
 public class MagicTest {
 
   //TODO Magic is currently tested only for baseline compiler.

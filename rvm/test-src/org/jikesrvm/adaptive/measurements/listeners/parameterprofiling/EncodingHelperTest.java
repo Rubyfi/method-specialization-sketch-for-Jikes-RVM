@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
 import org.jikesrvm.adaptive.measurements.listeners.parameterprofiling.ParameterStorage.ErrorFlag;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
-import org.jikesrvm.junit.runners.RequiresJikesRVM;
+import org.jikesrvm.junit.runners.RequiresBuiltJikesRVM;
 import org.jikesrvm.junit.runners.VMRequirements;
 import org.jikesrvm.runtime.JavaSizeConstants;
 import org.junit.Before;
@@ -100,7 +100,7 @@ public class EncodingHelperTest {
     assertEquals(s, decodedShort);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeFloat() throws Exception {
     float f = 0.1234f;
@@ -111,7 +111,7 @@ public class EncodingHelperTest {
     assertEquals(f, decodedFloat, 0.0);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeFloatNan() throws Exception {
     float f = Float.NaN;
@@ -122,7 +122,7 @@ public class EncodingHelperTest {
     assertEquals(f, decodedFloat, 0.0);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeFloatNegativeInf() throws Exception {
     float f = Float.NEGATIVE_INFINITY;
@@ -133,7 +133,7 @@ public class EncodingHelperTest {
     assertEquals(f, decodedFloat, 0.0);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeFloatPositiveInf() throws Exception {
     float f = Float.POSITIVE_INFINITY;
@@ -144,7 +144,7 @@ public class EncodingHelperTest {
     assertEquals(f, decodedFloat, 0.0);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeNegativeFloatValue() throws Exception {
     float f = -0.456f;
@@ -216,7 +216,7 @@ public class EncodingHelperTest {
     assertThatErrorFlagForStillInEncodingModeIsSet();
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeFloatDoNotSwitchModeAndTryToDecode() {
     float f = -12.45f;
@@ -310,7 +310,7 @@ public class EncodingHelperTest {
     assertThatErrorFlagForStillInEncodingModeIsSet();
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeDouble() throws Exception {
     double d = 1234.34E-120d;
@@ -321,7 +321,7 @@ public class EncodingHelperTest {
     assertEquals(d, decodedDouble, 0.0);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeDoubleAndDoNotSwitchMode() throws Exception {
     double d = -2.000003E200d;
@@ -376,7 +376,7 @@ public class EncodingHelperTest {
     assertFalse(encodingHelper.numberOfEncodingsAndDecodingsMatches());
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeAndDecodeRVMType() throws Exception {
     RVMType type = getAResolvedType();
@@ -393,7 +393,7 @@ public class EncodingHelperTest {
     return type;
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void encodeRVMTypeAndDoNotSwitchForDecoding() throws Exception {
     RVMType type = getAResolvedType();
@@ -408,7 +408,7 @@ public class EncodingHelperTest {
     encodingHelper = new EncodingHelper(INITIAL_CAPACITY);
   }
 
-  @Category(RequiresJikesRVM.class)
+  @Category(RequiresBuiltJikesRVM.class)
   @Test
   public void testBytesForTypeReference() {
     TypeReference booleanTypeRef = TypeReference.Boolean;

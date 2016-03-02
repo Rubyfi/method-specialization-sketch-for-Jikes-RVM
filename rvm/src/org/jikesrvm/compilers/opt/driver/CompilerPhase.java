@@ -254,7 +254,7 @@ public abstract class CompilerPhase {
     String methodKind = "";
     if (ir.belongsToSpecializedMethod()) {
       methodKind = "---SPECIALIZED VERSION OF--- ";
-    } else  if (ir.gc.isGeneralMethodVersion()) {
+    } else  if (ir.getGc().isGeneralMethodVersion()) {
       methodKind = "---GENERAL METHOD VERSION OF--- ";
     }
 

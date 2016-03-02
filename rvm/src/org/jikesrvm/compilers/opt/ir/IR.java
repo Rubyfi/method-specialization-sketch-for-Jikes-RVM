@@ -199,7 +199,7 @@ public final class IR {
    * The root {@link GenerationContext generation context}
    * for the current compilation.
    */
-  public GenerationContext gc;
+  private GenerationContext gc;
 
   /**
    * The {@link InlineOracle inlining oracle} to be used for the
@@ -240,7 +240,7 @@ public final class IR {
    * increases from {@link #UNFORMED} to {@link #HIR}
    * to {@link #LIR} to {@link #MIR}.
    */
-  public byte IRStage = UNFORMED;
+  private byte IRStage = UNFORMED;
 
   /**
    *  Was liveness for handlers computed?
@@ -348,12 +348,38 @@ public final class IR {
   }
 
   /**
+   * Transfers HIR and misc state from a generation context to
+   * this IR.
+   * @param gc the context to transfer from
+   */
+  public void initializeStateForHIR(GenerationContext gc) {
+    this.gc = gc;
+    this.cfg = gc.getCfg();
+    this.regpool = gc.getTemps();
+    if (gc.requiresStackFrame()) {
+      this.stackManager.forceFrameAllocation();
+    }
+    this.IRStage = IR.HIR;
+    this.HIRInfo = new HIRInfo(this);
+  }
+
+  public void initializeStateForLIR() {
+    this.IRStage = IR.LIR;
+    this.LIRInfo = new LIRInfo(this);
+  }
+
+  public void initializeStateForMIR() {
+    this.IRStage = IR.MIR;
+    this.MIRInfo = new MIRInfo(this);
+  }
+
+  /**
    * Print the instructions in this IR to System.out.
    */
   public void printInstructions() {
     for (Enumeration<Instruction> e = forwardInstrEnumerator(); e.hasMoreElements();) {
       Instruction i = e.nextElement();
-      System.out.print(i.bcIndex + "\t" + i);
+      System.out.print(i.getBytecodeIndex() + "\t" + i);
 
       // Print block frequency with the label instruction
       if (i.operator() == LABEL) {
@@ -363,6 +389,48 @@ public final class IR {
 
       System.out.println();
     }
+  }
+
+  /**
+   * @return {@code true} if the IR is a high-level intermediate
+   *  representation, {@code false} otherwise.
+   *
+   *  @see #IRStage
+   */
+  public boolean isHIR() {
+    return IRStage == IR.HIR;
+  }
+
+  /**
+   * @return {@code true} if the IR is a low-level intermediate
+   *  representation, {@code false} otherwise.
+   *
+   *  @see #IRStage
+   */
+  public boolean isLIR() {
+    return IRStage == IR.LIR;
+  }
+
+  /**
+   * @return {@code true} if the IR is in a stage lather than the
+   *  the high-level intermediate representation, {@code false}
+   *  otherwise
+   *
+   *  @see #IRStage
+   */
+  public boolean isNotHIR() {
+    return IRStage != IR.HIR;
+  }
+
+  /**
+   * @return {@code true} if the IR is in a stage earlier than the
+   *  the machine-dependent intermediate representation, {@code false}
+   *  otherwise
+   *
+   *  @see #IRStage
+   */
+  public boolean isNotMIR() {
+    return IRStage < IR.MIR;
   }
 
   /**
@@ -377,7 +445,7 @@ public final class IR {
    */
   public static boolean strictFP(Instruction... is) {
     for (Instruction i : is) {
-      if (i.position.method.isStrictFP()) {
+      if (i.position().method.isStrictFP()) {
         return true;
       }
     }
@@ -1512,6 +1580,10 @@ public final class IR {
     CompilerPhase.dumpIR(this, "Verify: " + where + ": " + method, true);
     VM.sysWriteln("VERIFY: " + where + " " + msg);
     throw new OptimizingCompilerException("VERIFY: " + where, msg);
+  }
+
+  public GenerationContext getGc() {
+    return gc;
   }
 
 }
