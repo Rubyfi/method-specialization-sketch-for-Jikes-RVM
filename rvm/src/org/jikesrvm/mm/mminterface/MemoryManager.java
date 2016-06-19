@@ -19,12 +19,14 @@ import static org.jikesrvm.HeapLayoutConstants.BOOT_IMAGE_DATA_START;
 import static org.jikesrvm.objectmodel.TIBLayoutConstants.IMT_METHOD_SLOTS;
 import static org.jikesrvm.runtime.ExitStatus.EXIT_STATUS_BOGUS_COMMAND_LINE_ARG;
 import static org.mmtk.utility.Constants.MIN_ALIGNMENT;
+import static org.mmtk.utility.heap.layout.HeapParameters.MAX_SPACES;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.architecture.StackFrameLayout;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
@@ -53,7 +55,7 @@ import org.mmtk.utility.Memory;
 import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.gcspy.GCspy;
 import org.mmtk.utility.heap.HeapGrowthManager;
-import org.mmtk.utility.heap.Mmapper;
+import org.mmtk.utility.heap.layout.HeapLayout;
 import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
@@ -119,8 +121,8 @@ public final class MemoryManager {
   public static void boot(BootRecord theBootRecord) {
     Extent pageSize = BootRecord.the_boot_record.bytesInPage;
     org.jikesrvm.runtime.Memory.setPageSize(pageSize);
-    Mmapper.markAsMapped(BOOT_IMAGE_DATA_START, BOOT_IMAGE_DATA_SIZE);
-    Mmapper.markAsMapped(BOOT_IMAGE_CODE_START, BOOT_IMAGE_CODE_SIZE);
+    HeapLayout.mmapper.markAsMapped(BOOT_IMAGE_DATA_START, BOOT_IMAGE_DATA_SIZE);
+    HeapLayout.mmapper.markAsMapped(BOOT_IMAGE_CODE_START, BOOT_IMAGE_CODE_SIZE);
     HeapGrowthManager.boot(theBootRecord.initialHeapSize, theBootRecord.maximumHeapSize);
     DebugUtil.boot(theBootRecord);
     Selected.Plan.get().enableAllocation();
@@ -666,12 +668,24 @@ public final class MemoryManager {
 
   /**
    * Allocate a stack
-   * @param bytes    The number of bytes to allocate
+   * @param bytes the number of bytes to allocate. Must be greater than
+   *  0.
    * @return The stack
    */
   @NoInline
   @Unpreemptible
   public static byte[] newStack(int bytes) {
+    if (bytes <= 0) {
+      if (VM.VerifyAssertions) {
+        VM.sysWrite("Invalid stack size: ");
+        VM.sysWrite(bytes);
+        VM.sysWriteln("!");
+        VM._assert(VM.NOT_REACHED, "Attempted to create stack with size (in bytes) of 0 or smaller!");
+      } else {
+        bytes = StackFrameLayout.getStackSizeNormal();
+      }
+    }
+
     if (!VM.runningVM) {
       return new byte[bytes];
     } else {
@@ -1187,7 +1201,7 @@ public final class MemoryManager {
      *  The boot record has a table of address ranges of the heaps,
      *  the maximum number of heaps is used to size the table.
      */
-    return Space.MAX_SPACES;
+    return MAX_SPACES;
   }
 
   /**

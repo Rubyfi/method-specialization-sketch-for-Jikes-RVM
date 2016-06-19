@@ -76,6 +76,7 @@ import static org.jikesrvm.ppc.BaselineConstants.T3;
 import static org.jikesrvm.ppc.BaselineConstants.T4;
 import static org.jikesrvm.ppc.BaselineConstants.T5;
 import static org.jikesrvm.ppc.BaselineConstants.T6;
+import static org.jikesrvm.ppc.BaselineConstants.T7;
 import static org.jikesrvm.ppc.RegisterConstants.FIRST_NONVOLATILE_GPR;
 import static org.jikesrvm.ppc.RegisterConstants.FIRST_OS_PARAMETER_FPR;
 import static org.jikesrvm.ppc.RegisterConstants.FIRST_OS_PARAMETER_GPR;
@@ -207,7 +208,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     localFloatLocations = floatLocLoc;
     use_nonvolatile_registers = USE_NONVOLATILE_REGISTERS && !method.hasBaselineNoRegistersAnnotation();
 
-    if (VM.VerifyAssertions) VM._assert(T6.value() <= LAST_VOLATILE_GPR.value());           // need 4 gp temps
+    if (VM.VerifyAssertions) VM._assert(T7.value() <= LAST_VOLATILE_GPR.value());           // need 8 gp temps
     if (VM.VerifyAssertions) VM._assert(F3.value() <= LAST_VOLATILE_FPR.value());           // need 4 fp temps
     if (VM.VerifyAssertions) VM._assert(S0.value() < S1.value() && S1.value() <= LAST_SCRATCH_GPR.value()); // need 2 scratch
     stackHeights = new int[bcodes.length()];
@@ -1996,7 +1997,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
 
     if (options.PROFILE_EDGE_COUNTERS) {
       ForwardReference fr = asm.emitForwardBC(LT); // jump around jump to default target
-      incEdgeCounter(T2, S0, firstCounter + n);
+      incEdgeCounter(T2, S0, T3, firstCounter + n);
       asm.emitB(mTarget, bTarget);
       fr.resolve(asm);
     } else {
@@ -2050,7 +2051,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
         // Flip conditions so we can jump over the increment of the taken counter.
         ForwardReference fr = asm.emitForwardBC(NE);
         // Increment counter & jump to target
-        incEdgeCounter(T2, S0, edgeCounterIdx++);
+        incEdgeCounter(T2, S0, T3, edgeCounterIdx++);
         asm.emitB(mTarget, bTarget);
         fr.resolve(asm);
       } else {
@@ -2065,7 +2066,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     int bTarget = biStart + defaultval;
     int mTarget = bytecodeMap[bTarget];
     if (options.PROFILE_EDGE_COUNTERS) {
-      incEdgeCounter(T2, S0, edgeCounterIdx++);
+      incEdgeCounter(T2, S0, T3, edgeCounterIdx++);
     }
     asm.emitB(mTarget, bTarget);
   }
@@ -2128,7 +2129,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     emitDynamicLinkingSequence(T0, fieldRef, true);
     TypeReference fieldType = fieldRef.getFieldContentsType();
     if (NEEDS_OBJECT_GETSTATIC_BARRIER && fieldType.isReferenceType()) {
-      Barriers.compileGetstaticBarrier(this, fieldType.getId());
+      Barriers.compileGetstaticBarrier(this, fieldRef.getId());
       pushAddr(T0);
     } else if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
       asm.emitLIntX(T1, T0, JTOC);
@@ -2155,7 +2156,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     Offset fieldOffset = field.getOffset();
     TypeReference fieldType = fieldRef.getFieldContentsType();
     if (NEEDS_OBJECT_GETSTATIC_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
-      Barriers.compileGetstaticBarrierImm(this, fieldOffset, fieldType.getId());
+      Barriers.compileGetstaticBarrierImm(this, fieldOffset, fieldRef.getId());
       pushAddr(T0);
     } else if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
       asm.emitLIntToc(T0, fieldOffset);
@@ -2248,7 +2249,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     // T1 = field offset from emitDynamicLinkingSequence()
     emitDynamicLinkingSequence(T1, fieldRef, true);
     if (NEEDS_OBJECT_GETFIELD_BARRIER && fieldType.isReferenceType()) {
-      Barriers.compileGetfieldBarrier(this, fieldType.getId());
+      Barriers.compileGetfieldBarrier(this, fieldRef.getId());
       discardSlots(1);
       pushAddr(T0);
     } else {
@@ -2298,7 +2299,7 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     TypeReference fieldType = fieldRef.getFieldContentsType();
     Offset fieldOffset = field.getOffset();
     if (NEEDS_OBJECT_GETFIELD_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
-      Barriers.compileGetfieldBarrierImm(this, fieldOffset, fieldType.getId());
+      Barriers.compileGetfieldBarrierImm(this, fieldOffset, fieldRef.getId());
       discardSlots(1);
       pushAddr(T0);
     } else {
@@ -2700,9 +2701,9 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     asm.emitLAddrToc(T1, tibOffset);
     asm.emitLVAL(T2, typeRef.hasFinalizer() ? 1 : 0);
     asm.emitLVAL(T3, whichAllocator);
-    asm.emitLVAL(T4, site);
     asm.emitLVAL(T4, align);
     asm.emitLVAL(T5, offset);
+    asm.emitLVAL(T6, site);
     asm.emitBCCTRL();
     pushAddr(T0);
   }
@@ -2730,13 +2731,13 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
     asm.emitLAddrToc(T0, Entrypoints.resolvedNewArrayMethod.getOffset());
     asm.emitMTCTR(T0);
     peekInt(T0, 0);                    // T0 := number of elements
-    asm.emitLVAL(T5, site);           // T4 := site
     asm.emitLVAL(T1, width);         // T1 := log element size
     asm.emitLVAL(T2, headerSize);    // T2 := header bytes
     asm.emitLAddrToc(T3, tibOffset);  // T3 := tib
     asm.emitLVAL(T4, whichAllocator);// T4 := allocator
     asm.emitLVAL(T5, align);
     asm.emitLVAL(T6, offset);
+    asm.emitLVAL(T7, site);           // T7 := site
     asm.emitBCCTRL();
     pokeAddr(T0, 0);
   }
@@ -3438,12 +3439,12 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
       ForwardReference fr = asm.emitForwardBC(Assembler.flipCode(cc));
 
       // Increment taken counter & jump to target
-      incEdgeCounter(T0, T1, entry + EdgeCounts.TAKEN);
+      incEdgeCounter(T0, T1, T2, entry + EdgeCounts.TAKEN);
       asm.emitB(bytecodeMap[bTarget], bTarget);
 
       // Not taken
       fr.resolve(asm);
-      incEdgeCounter(T0, T1, entry + EdgeCounts.NOT_TAKEN);
+      incEdgeCounter(T0, T1, T2, entry + EdgeCounts.NOT_TAKEN);
     } else {
       if (bTarget - SHORT_FORWARD_LIMIT < biStart) {
         asm.emitShortBC(cc, bytecodeMap[bTarget], bTarget);
@@ -3457,16 +3458,25 @@ public final class BaselineCompilerImpl extends BaselineCompiler {
    * increment an edge counter.
    * @param counters register containing base of counter array
    * @param scratch scratch register
+   * @param scratchForXER scratch register that will hold contents of XER
    * @param counterIdx index of counter to increment
    */
-  private void incEdgeCounter(GPR counters, GPR scratch, int counterIdx) {
+  private void incEdgeCounter(GPR counters, GPR scratch, GPR scratchForXER, int counterIdx) {
     asm.emitLInt(scratch, counterIdx << 2, counters);
-    asm.emitADDI(scratch, 1, scratch);
-    // Branch around store if we overflowed: want count to saturate at maxint.
-    asm.emitCMPI(scratch, 0);
-    ForwardReference fr = asm.emitForwardBC(LT);
+    asm.emitADDICr(scratch, scratch, 1);
+    // spr for XER is 00000 00001 which is reversed to 00001 00000
+    final int sprForXER = 1 << 5;
+    // Move XER into scratch
+    asm.emitMFSPR(scratchForXER, sprForXER);
+    // XOR it to invert carry, carry is in position 34 in XER
+    asm.emitXORIS(scratchForXER, scratchForXER, 1 << 13);
+    // Move adjusted XER back
+    asm.emitMTSPR(scratchForXER, sprForXER);
+    // Carry is 0 if value overflowed and 1 otherwise, so
+    // 1 will be subtracted if the value overflowed, otherwise
+    // it will be unchanged
+    asm.emitADDME(scratch, scratch);
     asm.emitSTW(scratch, counterIdx << 2, counters);
-    fr.resolve(asm);
   }
 
   private void incEdgeCounterIdx(GPR counters, GPR scratch, int base, GPR counterIdx) {

@@ -15,11 +15,11 @@ package org.jikesrvm.adaptive.measurements.listeners.parameterprofiling;
 
 interface ParameterStorage {
 
-  public enum Mode {
+  enum Mode {
     ENCODING, DECODING
   }
 
-  public enum ErrorFlag {
+  enum ErrorFlag {
     STILL_IN_ENCODING_MODE, STILL_IN_DECODING_MODE, NO_ERROR
   }
 

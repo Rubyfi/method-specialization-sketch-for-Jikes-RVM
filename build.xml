@@ -103,13 +103,17 @@
   <property name="junit.reports.bootstrap" location="${build.base}/test-reports-bootstrap"/>
   <property name="junit.reports.rvm" location="${build.base}/test-reports-rvm"/>
 
-  <!-- Permit parallelisation of the bootimage build -->
+  <!-- Number of threads to create for the paralllel part of bootimage building -->
+  <!-- A thread count of 0 maps to a thread count of (Runtime.getAvailableProcessors() + 1) -->
   <property name="bootimage.threads" value="1"/>
 
   <!-- Source versions -->
   <property name="mmtk.java.version" value="1.6"/>
   <property name="harness.java.version" value="1.6"/>
   <property name="rvm.java.version" value="1.6"/>
+	
+  <!-- Default heap layout -->
+  <property name="target.heap-layout" value="32BIT"/>
 
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
@@ -327,6 +331,14 @@
       </conditions>
       <sequential>
         <ant antfile="build/components/checkstyle.xml" target="ensure"/>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <equals arg1="${require.pmd}" arg2="true"/>
+      </conditions>
+      <sequential>
+        <ant antfile="build/components/pmd.xml" target="ensure"/>
       </sequential>
     </if>
     <property file="${components.file}"/>
@@ -1098,6 +1110,7 @@ Check to make sure all required properties are specified. This includes properti
         <filter token="_BOOTIMAGE_RMAP_ADDRESS_" value="${target.bootimage.rmap.address}"/>
         <filter token="_MAXIMUM_MAPPABLE_ADDRESS_" value="${target.max-mappable.address}"/>
         <filter token="_ADDRESS_METHOD_" value="${pp_address.method}"/>
+        <filter token="_HEAP_LAYOUT_" value="${target.heap-layout}"/>
       </filterset>
     </copy>
 
@@ -1698,8 +1711,13 @@ Check to make sure all required properties are specified. This includes properti
       </sequential>
     </if>
 
+    <condition property="readableThreadCount" value="(Runtime.getAvailableProcessors() + 1)" else="${bootimage.threads}">
+      <equals arg1="${bootimage.threads}" arg2="0"/>
+    </condition>
+
     <echo message="Building bootimage. Output redirected to : ${build.base}/BootImageWriterOutput.txt"/>
     <echo message="MMTk properties = ${mmtk.properties}"/>
+    <echo message="Number of threads for compilation = ${readableThreadCount}"/>
     <java classname="org.jikesrvm.tools.bootImageWriter.BootImageWriter"
           fork="yes"
           maxmemory="500M"
@@ -1788,12 +1806,6 @@ Check to make sure all required properties are specified. This includes properti
       <sysproperty key="mmtk.hostjvm" value="org.jikesrvm.mm.mmtk.Factory"/>
       <sysproperty key="mmtk.properties" value="${mmtk.properties}"/>
       <jvmarg value="-Xbootclasspath/a:${build.rt.jar}"/>
-      <arg value="-da"/>
-      <arg value="${target.bootimage.data.address}"/>
-      <arg value="-ca"/>
-      <arg value="${target.bootimage.code.address}"/>
-      <arg value="-ra"/>
-      <arg value="${target.bootimage.rmap.address}"/>
       <arg value="-out"/>
       <arg path="${build.native}/InterfaceDeclarations.h"/>
     </java>
@@ -2109,6 +2121,7 @@ target.name=${target.name}
 target.arch=${target.arch}
 target.os=${target.os}
 target.address.size=${target.address.size}
+target.heap-layout=${target.heap-layout}
 target.bootimage.code.address=${target.bootimage.code.address}
 target.bootimage.data.address=${target.bootimage.data.address}
 target.bootimage.rmap.address=${target.bootimage.rmap.address}
@@ -2166,6 +2179,7 @@ target.name=${target.name}
 target.arch=${target.arch}
 target.os=${target.os}
 target.address.size=${target.address.size}
+target.heap-layout=${target.heap-layout}
 target.bootimage.code.address=${target.bootimage.code.address}
 target.bootimage.data.address=${target.bootimage.data.address}
 target.bootimage.rmap.address=${target.bootimage.rmap.address}
@@ -2412,9 +2426,11 @@ target.jni-suffix=${target.jni-suffix}
   <!-- *                                                                          * -->
   <!-- **************************************************************************** -->
 
-  <target name="pmd" depends="prepare-source,prepare-config-source,choose-classlib">
-    <ant antfile="build/components/pmd.xml" target="ensure"/>
+  <target name="set-pmd-as-required">
+    <property name="require.pmd" value="true"/>
+  </target>
 
+  <target name="pmd" depends="set-pmd-as-required,prepare-source,prepare-config-source,choose-classlib">
     <taskdef name="pmd" classname="net.sourceforge.pmd.ant.PMDTask">
       <classpath>
         <fileset dir="${pmd.dir}/lib">

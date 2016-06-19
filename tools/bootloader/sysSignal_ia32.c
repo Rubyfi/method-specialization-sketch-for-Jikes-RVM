@@ -276,7 +276,7 @@ static Address getInstructionFollowing(Address faultingInstructionAddress) {
     // extract w byte which is necessary to determine operand sizes
     rex_w_byte = (opcode >> 3) & 1;
   }
-#endif __x86_64__
+#endif
 
   /* One-byte opcodes */
   switch (opcode) {
@@ -585,7 +585,7 @@ EXTERNAL int readContextTrapCode(void UNUSED *context, Address threadPtr, int si
  */
 EXTERNAL void setupDeliverHardwareException(void *context, Address vmRegisters,
              int trapCode, Word trapInfo,
-             Address instructionPtr,
+             Address instructionPtr UNUSED,
              Address instructionFollowingPtr,
              Address threadPtr, Address jtocPtr,
              Address framePtr, int signo)
@@ -706,7 +706,7 @@ EXTERNAL void setupDumpStackAndDie(void *context)
   sp -= __SIZEOF_POINTER__;
   *sp = 0;
 
-  IA32_ESP(context) = sp;
+  IA32_ESP(context) = (greg_t) sp;
 
   /* goto dumpStackAndDie routine (in Scheduler) as if called */
   IA32_EIP(context) = dumpStack;

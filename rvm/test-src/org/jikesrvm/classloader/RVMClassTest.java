@@ -61,7 +61,7 @@ public class RVMClassTest {
     RVMField[] declaredFields = new RVMField[0];
     RVMMethod[] declaredMethods = new RVMMethod[0];
     RVMClass klass =
-        new RVMClass(tRef, constantPool, modifiers,
+        new RVMClass(tRef, constantPool, modifiers, modifiers,
             superClass,
             declaredInterfaces,
             declaredFields, declaredMethods,
@@ -70,5 +70,24 @@ public class RVMClassTest {
     RuntimeEntrypoints.initializeClassForDynamicLink(klass);
     return klass;
   }
+
+  @Test
+  public void interfaceVirtualMethodsDontContainMethodsWithTheSameSignatureAndName() throws ClassNotFoundException {
+    RVMMethod[] testInterfaceAMethods = JikesRVMSupport.getTypeForClass(
+        TestInterface_A.class).getVirtualMethods();
+    RVMMethod[] testInterfaceBMethods = JikesRVMSupport.getTypeForClass(
+        TestInterface_B.class).getVirtualMethods();
+    assertThat(testInterfaceBMethods.length, is(testInterfaceAMethods.length));
+  }
+
+  private interface TestInterface_B extends TestInterface_A {
+    @Override
+    void test();
+  }
+
+  private interface TestInterface_A {
+    void test();
+  }
+
 
 }

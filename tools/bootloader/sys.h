@@ -27,6 +27,7 @@
 #include "cAttributePortability.h"
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h> // for strcmp
 #include <jni.h>
 #include <signal.h> // for siginfo
 
@@ -115,7 +116,7 @@ extern Extent pageSize;
 #define TRACE_PRINTF(...) if (TRACE) fprintf(SysTraceFile, __VA_ARGS__)
 
 /** Conditional printouts for verbose signal handling */
-#define VERBOSE_SIGNALS_PRINTF(...) if (verboseSignalHandling) fprintf(SysTraceFile, __VA_ARGS__)
+#define VERBOSE_SIGNALS_PRINTF(...) if (verboseSignalHandling) fprintf(SysErrorFile, __VA_ARGS__)
 
 /* String utilities */
 #define STREQUAL(s1, s2) (strcmp(s1, s2) == 0)
@@ -192,6 +193,7 @@ EXTERNAL long long sysDoubleToLong(double a);
 EXTERNAL double sysDoubleRemainder(double a, double b);
 EXTERNAL float sysPrimitiveParseFloat(const char * buf);
 EXTERNAL int sysPrimitiveParseInt(const char * buf);
+EXTERNAL long long sysPrimitiveParseLong(const char * buf);
 EXTERNAL double sysVMMathSin(double a);
 EXTERNAL double sysVMMathCos(double a);
 EXTERNAL double sysVMMathTan(double a);
@@ -276,6 +278,7 @@ EXTERNAL void setupDeliverHardwareException(void *context, Address vmRegisters,
              Address framePtr, int signo);
 EXTERNAL void dumpContext(void *context);
 // sysThread
+EXTERNAL void sysInitialize();
 EXTERNAL Word sysMonitorCreate();
 EXTERNAL void sysMonitorDestroy(Word);
 EXTERNAL void sysMonitorEnter(Word);
@@ -299,6 +302,9 @@ EXTERNAL void sysThreadYield();
 EXTERNAL Word sysGetThreadPriorityHandle();
 EXTERNAL int sysGetThreadPriority(Word thread, Word handle);
 EXTERNAL int sysSetThreadPriority(Word thread, Word handle, int priority);
+// sysThread - architecture specific
+// parameters are architecture specific too.
+EXTERNAL void bootThread(void *, void *, void *, void *);
 // sysTime
 EXTERNAL long long sysCurrentTimeMillis();
 EXTERNAL long long sysNanoTime();

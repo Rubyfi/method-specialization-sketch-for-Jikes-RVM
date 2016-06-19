@@ -34,9 +34,12 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.BootstrapClassLoader;
+import org.jikesrvm.classloader.MethodReference;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMClassLoader;
 import org.jikesrvm.classloader.RVMField;
@@ -47,7 +50,6 @@ import org.jikesrvm.runtime.Callbacks;
 import org.jikesrvm.runtime.Reflection;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.StackBrowser;
-import org.jikesrvm.util.UnimplementedError;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.MakesAssumptionsAboutCallStack;
 import org.vmmagic.pragma.NoInline;
@@ -120,12 +122,12 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   @Pure
   public int getModifiers() {
     if (type.isClassType()) {
-      return type.asClass().getModifiers();
+      return type.asClass().getOriginalModifiers();
     } else if (type.isArrayType()) {
       RVMType innermostElementType = type.asArray().getInnermostElementType();
       int result = Modifier.FINAL;
       if (innermostElementType.isClassType()) {
-        int component = innermostElementType.asClass().getModifiers();
+        int component = innermostElementType.asClass().getOriginalModifiers();
         result |= (component & (Modifier.PUBLIC | Modifier.PROTECTED | Modifier.PRIVATE));
       } else {
         result |= Modifier.PUBLIC; // primitive
@@ -159,6 +161,7 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   }
 
   public URL getResource(String resName) {
+    if (resName == null) return null;
     ClassLoader loader = type.getClassLoader();
     if (loader == BootstrapClassLoader.getBootstrapClassLoader())
       return ClassLoader.getSystemResource(toResourceName(resName));
@@ -651,11 +654,36 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   }
 
   public Constructor<?> getEnclosingConstructor() {
-    throw new UnimplementedError();
+    if (!(isAnonymousClass() || isLocalClass())) {
+      return null;
+    }
+
+    MethodReference enclosingMethodRef = type.asClass().getEnclosingMethod();
+    if (enclosingMethodRef == null) {
+      return null;
+    }
+    RVMMethod method = enclosingMethodRef.resolve();
+    if (!method.isObjectInitializer()) {
+      return null;
+    }
+    return JikesRVMSupport.createConstructor(method);
   }
 
   public Method getEnclosingMethod() {
-    throw new UnimplementedError();
+    if (!(isAnonymousClass() || isLocalClass())) {
+      return null;
+    }
+
+    MethodReference enclosingMethodRef = type.asClass().getEnclosingMethod();
+    if (enclosingMethodRef == null) {
+      return null;
+    } else {
+      RVMMethod method = enclosingMethodRef.resolve();
+      if (method.isObjectInitializer() || method.isClassInitializer()) {
+        return null;
+      }
+      return JikesRVMSupport.createMethod(method);
+    }
   }
 
   // --- Enumeration support ---
@@ -815,6 +843,10 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
 
   private static Class<?> forNameInternal(String className, boolean initialize, ClassLoader classLoader)
       throws ClassNotFoundException, LinkageError, ExceptionInInitializerError {
+    if (className == null) {
+      throw new ClassNotFoundException("Cannot load a class with a name of null");
+    }
+
     try {
       if (className.startsWith("[")) {
         if (!validArrayDescriptor(className)) {
@@ -931,13 +963,12 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   }
 
   public Method getMethod(String name, Class<?>... parameterTypes) throws NoSuchMethodException, SecurityException {
+    throwNPEWhenNameIsNull(name);
+
     checkMemberAccess(Member.PUBLIC);
 
     if (!type.isClassType()) throwNoSuchMethodException(name, parameterTypes);
 
-    if (name == null) {
-      throwNoSuchMethodException(name, parameterTypes);
-    }
     Atom aName = Atom.findOrCreateUnicodeAtom(name);
     if (aName == RVMClassLoader.StandardClassInitializerMethodName ||
         aName == RVMClassLoader.StandardObjectInitializerMethodName) {
@@ -959,8 +990,16 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
     return JikesRVMSupport.createMethod(answer);
   }
 
+  private static void throwNPEWhenNameIsNull(String name) {
+    if (name == null) {
+      throw new NullPointerException("Name parameter must not be null (but was)!");
+    }
+  }
+
   public Method getDeclaredMethod(String name, Class<?>... parameterTypes)
   throws NoSuchMethodException, SecurityException {
+    throwNPEWhenNameIsNull(name);
+
     checkMemberAccess(Member.DECLARED);
 
     if (!type.isClassType()) throwNoSuchMethodException(name, parameterTypes);
@@ -1015,7 +1054,8 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
 
     RVMMethod[] static_methods = type.getStaticMethods();
     RVMMethod[] virtual_methods = type.getVirtualMethods();
-    ArrayList<Method> coll = new ArrayList<Method>(static_methods.length + virtual_methods.length);
+    HashSet<Method> coll = new HashSet<Method>(static_methods.length +
+        virtual_methods.length);
     for (RVMMethod meth : static_methods) {
       if (meth.isPublic()) {
         coll.add(JikesRVMSupport.createMethod(meth));
@@ -1026,7 +1066,47 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
         coll.add(JikesRVMSupport.createMethod(meth));
       }
     }
+    // The Java API says that duplicate versions are returned if multiple
+    // versions of a method are defined by a class. This only applies to
+    // abstract classes and interfaces because normal classes always have
+    // exactly one definition for a given signature-name pair.
+    RVMClass thisClass = type.asClass();
+    boolean isAbstract = thisClass.isAbstract();
+    if (isInterface() || isAbstract) {
+      // For each virtual method , search all superinterfaces
+      // to find all declarations that aren't shadowed by superinterfaces and
+      // add those to the set of methods.
+      HashSet<Method> methods = new HashSet<Method>();
+      for (RVMMethod m : virtual_methods) {
+        Atom name = m.getName();
+        Atom desc = m.getDescriptor();
+        if (isAbstract && !m.getDeclaringClass().isInterface()) {
+          // If the method is declared by a class (and not an interface),
+          // only that declaration is relevant. Declarations that may come
+          // from interfaces are overridden by the class' definition. That
+          // definition is already in the virtual methods. Therefore, it's
+          // unnecessary to search for additional declarations for that
+          // method.
+          continue;
+        }
+        collectDeclarations(thisClass, name, desc, methods);
+      }
+      coll.addAll(methods);
+    }
+
     return coll.toArray(new Method[coll.size()]);
+  }
+
+  private static void collectDeclarations(RVMClass i, Atom name, Atom desc, Set<Method> methods) {
+    for (RVMMethod declared : i.getDeclaredMethods()) {
+      if (declared.getName() == name && declared.getDescriptor() == desc) {
+        methods.add(JikesRVMSupport.createMethod(declared));
+        return;
+      }
+    }
+    for (RVMClass declardInterface : i.getDeclaredInterfaces()) {
+      collectDeclarations(declardInterface, name, desc, methods);
+    }
   }
 
   // --- Fields ---
@@ -1058,6 +1138,8 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   }
 
   public Field getField(String name) throws NoSuchFieldException, SecurityException {
+    throwNPEWhenNameIsNull(name);
+
     checkMemberAccess(Member.PUBLIC);
     if (!type.isClassType()) throw new NoSuchFieldException();
 
@@ -1074,6 +1156,8 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
 
   public Field getDeclaredField(String name)
     throws NoSuchFieldException, SecurityException {
+    throwNPEWhenNameIsNull(name);
+
     checkMemberAccess(Member.DECLARED);
     if (!type.isClassType() || name == null) throwNoSuchFieldException(name);
 

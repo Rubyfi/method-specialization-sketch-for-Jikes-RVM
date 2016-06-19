@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.compilers.opt.mir2mc.ia32;
 
+import static org.jikesrvm.ia32.RegisterConstants.JTOC_REGISTER;
 import static org.jikesrvm.compilers.opt.ir.Operators.NULL_CHECK_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_BACKEDGE_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_EPILOGUE_opcode;
@@ -57,6 +58,7 @@ import static org.jikesrvm.compilers.opt.ir.ia32.ArchOperators.IA32_TRAPIF;
 import static org.jikesrvm.compilers.opt.ir.ia32.ArchOperators.IA32_TRAPIF_opcode;
 import static org.jikesrvm.compilers.opt.ir.ia32.ArchOperators.IA32_XOR;
 import static org.jikesrvm.compilers.opt.ir.ia32.ArchOperators.REQUIRE_ESP_opcode;
+import static org.jikesrvm.util.Bits.fits;
 
 import java.util.Enumeration;
 
@@ -360,11 +362,13 @@ public class FinalMIRExpansion extends IRTools {
                 MIR_BinaryAcc.mutate(p, IA32_ADD, result, value.index);
               } else if (value.base != null && value.base.getRegister() == result.getRegister() &&
                          value.index == null) {
+                if (VM.VerifyAssertions) VM._assert(fits(value.disp, 32));
                 // reg1 = lea [reg1 + disp] -> add reg1, disp
                 MIR_BinaryAcc.mutate(p, IA32_ADD, result, IC(value.disp.toInt()));
               } else if (value.base == null &&
                          value.index != null && value.index.getRegister() == result.getRegister() &&
                          value.scale == 0) {
+                if (VM.VerifyAssertions) VM._assert(fits(value.disp, 32));
                 // reg1 = lea [reg1 + disp] -> add reg1, disp
                 MIR_BinaryAcc.mutate(p, IA32_ADD, result, IC(value.disp.toInt()));
               } else if (value.base == null &&
@@ -546,7 +550,13 @@ public class FinalMIRExpansion extends IRTools {
     Offset offset = meth.getOffset();
     LocationOperand loc = new LocationOperand(offset);
     Operand guard = TG();
-    Operand target = MemoryOperand.D(Magic.getTocPointer().plus(offset), (byte) 4, loc, guard);
+    Operand target;
+    if (JTOC_REGISTER == null) {
+      target = MemoryOperand.D(Magic.getTocPointer().plus(offset), (byte) 4, loc, guard);
+    } else {
+      target = MemoryOperand.BD(ir.regpool.makeTocOp().asRegister(), offset, (byte) 8, loc, guard);
+    }
+
     MIR_Call.mutate0(s, CALL_SAVE_VOLATILE, null, null, target, MethodOperand.STATIC(meth));
     yieldpoint.appendInstruction(s);
     ir.MIRInfo.gcIRMap.moveToEnd(s);

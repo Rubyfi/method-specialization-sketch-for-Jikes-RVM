@@ -33,7 +33,7 @@ import org.vmmagic.Pragma;
 @Pragma
 public @interface MakesAssumptionsAboutCallStack {
 
-  public enum How {
+  enum How {
     /**
      * Makes assumptions directly.
      */

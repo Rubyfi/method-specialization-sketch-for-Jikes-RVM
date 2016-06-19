@@ -16,7 +16,7 @@ class ProfileShutdownHook implements Runnable {
 
   private final ParameterProfileOrganizer ppo;
 
-  public ProfileShutdownHook(ParameterProfileOrganizer ppo) {
+  ProfileShutdownHook(ParameterProfileOrganizer ppo) {
     this.ppo = ppo;
   }
 
